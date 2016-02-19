@@ -77,6 +77,7 @@ cout << "wcharlen Overflow" << endl;
 }
 }*/
 
+
 int CalculateRect(RECT* rect, int x, int y, int width, int height)
 {
 	if (rect)
@@ -751,11 +752,6 @@ public:
 		if (temp == -1)
 			printf("Recv Error!\n");
 
-
-
-		//printf("%s", rbuf);
-
-		//wprintf(L"%ls", uni);
 		return 0;
 	}
 
@@ -876,6 +872,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			printf("%s\n", str);
 			memset(m_parser.address, 0, MAXLEN);
 			memset(m_parser.index, 0, MAXLEN);
+			memset(new_str, 0, 500);
 			parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
 			printf("%s\n", m_parser.address);
 			printf("%s\n", m_parser.index);
@@ -899,7 +896,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					//m_socket.Connect(m_dns.get_ip(), 443);
 					//m_socket.Connect(m_dns.get_ip(), 8888);
 					strcat(new_str, "GET ");
-					strcat(new_str, m_parser.index);
+					if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
+					{
+						char* temp = new char[strlen(m_parser.index) - 1];
+						memset(temp, 0, strlen(m_parser.index) - 1);
+						memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
+						strcat(new_str, temp);
+					}
+					else
+						strcat(new_str, m_parser.index);
 
 					//strcat(new_str, "/static/newsstand/up/2014/0715/092.gif");
 
