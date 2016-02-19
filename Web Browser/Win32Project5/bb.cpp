@@ -56,25 +56,25 @@ HWND* m_link = NULL;
 /*
 int wcharlen(wchar_t* buffer, int maybe_overflow)
 {
-	try
-	{
-		int i = 0;
-		while(1)
-		{
-			if (buffer[i] == '\n')
-				return i;
-			if (i > maybe_overflow)
-				throw 1;
-			i++;
-		}
-	}
-	catch(int error)
-	{
-		if (error)
-		{
-			cout << "wcharlen Overflow" << endl;
-		}
-	}
+try
+{
+int i = 0;
+while(1)
+{
+if (buffer[i] == '\n')
+return i;
+if (i > maybe_overflow)
+throw 1;
+i++;
+}
+}
+catch(int error)
+{
+if (error)
+{
+cout << "wcharlen Overflow" << endl;
+}
+}
 }*/
 
 int CalculateRect(RECT* rect, int x, int y, int width, int height)
@@ -119,7 +119,7 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
 
 	wchar_t* w_str = new wchar_t[500]();
 	Multi2Uni(temp_str, strlen(temp_str), w_str);
-		//wcscat(w_str,);
+	//wcscat(w_str,);
 
 	return CreateWindowEx(0, WC_LINK,
 		w_str,
@@ -785,7 +785,7 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 	hWnd = CreateWindow(lpszClass, lpszClass, WS_OVERLAPPEDWINDOW | WS_VSCROLL, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, NULL, (HMENU)NULL, hInstance, NULL);
 	RECT rt;
 	GetClientRect(hWnd, &rt);
-	
+
 	ShowWindow(hWnd, nCmdShow);
 
 	while (GetMessage(&Message, NULL, 0, 0))
@@ -868,7 +868,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			printf("%s\n", m_parser.address);
 			printf("%s\n", m_parser.index);
 
-			
+
 			//Parsing 되었을 경우
 			if (parse_int)
 			{
@@ -880,7 +880,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				//if (m_dns.get_dns("img.naver.net") != 1)
 				//if (m_dns.get_dns("www.ibk.co.kr") != 1)
 				//if (m_dns.get_dns("www.naver.com") != 1)
-				if(m_dns.get_dns(m_parser.address) != 1)
+				if (m_dns.get_dns(m_parser.address) != 1)
 				{
 					//연결 및 파싱
 					m_socket.Connect(m_dns.get_ip(), 80);
@@ -926,7 +926,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					//hBitmap = Load_bmp(char2unsigned(buf), 910, 302);		
 
 					//Multi2Uni(rbuf, m_socket.GetPacketNum());
-					
+
 					//m_socket.Close();
 				}
 				cout << "End Request\n" << endl;
@@ -951,12 +951,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 				int temp_x = 0;
 				int temp_y = 0;
-				
+
 				for (int i = 0; tag_temp == 1; i++)
 				{
 					memset(rbuf, 0, yPos_total);
 					tag_temp = Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf);
-					CalculateRect(m_rect + i, 0, 0+(16*i), client_rect.right, 16);
+					CalculateRect(m_rect + i, 0, 0 + (16 * i), client_rect.right, 16);
 					//CalculateRect(m_rect + i, 0, 0+(15*i), strlen(rbuf)*8, 15);
 					m_link[i] = CreateSysLink(hWnd, m_rect[i], i, rbuf, strlen(str_buffer));
 				}
@@ -996,7 +996,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			for (int i = 0; tag_temp == 1; i++)
 			{
 				tag_temp = Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf);
-				
+
 				//ID 검사
 				if (((LPNMHDR)IParam)->idFrom == (UINT)i)
 				{
@@ -1005,7 +1005,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				}
 				DestroyWindow(m_link[i]);
 			}
-			
+
 			InvalidateRect(hWnd, &rt, 0);
 			//RECT 정보 지우기
 			delete[] m_rect;
@@ -1154,7 +1154,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 		if (si.nPos != yPos)
 		{
 			InvalidateRect(hWnd, &rt, 0);
-			ScrollWindow(hWnd, 0, yPos -si.nPos, NULL, &rt);
+			ScrollWindow(hWnd, 0, yPos - si.nPos, NULL, &rt);
 			UpdateWindow(hWnd);
 		}
 
