@@ -585,6 +585,11 @@ public:
 
 	int get_dns(char* host_name)
 	{
+		//호스트 파싱
+		char* temp = new char[strlen(host_name) - 1];
+		memset(temp, 0, strlen(host_name) - 1);
+		memcpy(temp, host_name, strlen(host_name) - 1);
+
 		//호스트 받아오기
 		remoteHost = gethostbyname(host_name);
 		int i = 0;
@@ -601,7 +606,7 @@ public:
 				else if (dwError == WSANO_DATA)
 				{
 					printf("No data record found\n");
-					return 1;
+					return get_dns(temp);
 				}
 				else
 				{
@@ -864,6 +869,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			}
 			GetWindowTextA(hEdit, str, 128);
 			printf("%s\n", str);
+			memset(m_parser.address, 0, MAXLEN);
+			memset(m_parser.index, 0, MAXLEN);
 			parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
 			printf("%s\n", m_parser.address);
 			printf("%s\n", m_parser.index);
