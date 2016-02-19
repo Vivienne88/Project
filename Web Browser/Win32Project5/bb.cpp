@@ -586,12 +586,18 @@ public:
 	int get_dns(char* host_name)
 	{
 		//호스트 파싱
-		char* temp = new char[strlen(host_name) - 1];
-		memset(temp, 0, strlen(host_name) - 1);
-		memcpy(temp, host_name, strlen(host_name) - 1);
+		
+		if (host_name[strlen(host_name)-1] == '\n')
+		{
+			char* temp = new char[strlen(host_name) - 1];
+			memset(temp, 0, strlen(host_name) - 1);
+			memcpy(temp, host_name, strlen(host_name) - 1);
+			//호스트 받아오기
+			remoteHost = gethostbyname(temp);
+		}
+		else
+			remoteHost = gethostbyname(host_name);
 
-		//호스트 받아오기
-		remoteHost = gethostbyname(host_name);
 		int i = 0;
 		if (remoteHost == NULL)
 		{
@@ -606,7 +612,6 @@ public:
 				else if (dwError == WSANO_DATA)
 				{
 					printf("No data record found\n");
-					return get_dns(temp);
 				}
 				else
 				{

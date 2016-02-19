@@ -25,25 +25,25 @@ bb.cpp(531): warning C4996: 'strncpy': This function or variable may be unsafe. 
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(346): note: 'strncpy' 선언을 참조하십시오.
 bb.cpp(537): warning C4996: 'strncpy': This function or variable may be unsafe. Consider using strncpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(346): note: 'strncpy' 선언을 참조하십시오.
-bb.cpp(709): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+bb.cpp(714): warning C4996: 'strcpy': This function or variable may be unsafe. Consider using strcpy_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(119): note: 'strcpy' 선언을 참조하십시오.
-bb.cpp(896): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+bb.cpp(901): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(90): note: 'strcat' 선언을 참조하십시오.
-bb.cpp(897): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+bb.cpp(902): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(90): note: 'strcat' 선언을 참조하십시오.
-bb.cpp(906): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+bb.cpp(911): warning C4996: 'strcat': This function or variable may be unsafe. Consider using strcat_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
   C:\Program Files (x86)\Windows Kits\10\Include\10.0.10240.0\ucrt\string.h(90): note: 'strcat' 선언을 참조하십시오.
-bb.cpp(824): warning C4101: 'bmi' :참조되지 않은 지역 변수입니다.
-bb.cpp(826): warning C4101: 'bmih' :참조되지 않은 지역 변수입니다.
-bb.cpp(818): warning C4101: 'cBitmap' :참조되지 않은 지역 변수입니다.
-bb.cpp(843): warning C4101: 'hr' :참조되지 않은 지역 변수입니다.
-bb.cpp(828): warning C4101: 'y' :참조되지 않은 지역 변수입니다.
-bb.cpp(827): warning C4101: 'bits' :참조되지 않은 지역 변수입니다.
-bb.cpp(811): warning C4101: 'index' :참조되지 않은 지역 변수입니다.
-bb.cpp(846): warning C4101: 'mX' :참조되지 않은 지역 변수입니다.
-bb.cpp(816): warning C4101: 'bmp' :참조되지 않은 지역 변수입니다.
-bb.cpp(825): warning C4101: 'bmfh' :참조되지 않은 지역 변수입니다.
-bb.cpp(847): warning C4101: 'mY' :참조되지 않은 지역 변수입니다.
+bb.cpp(829): warning C4101: 'bmi' :참조되지 않은 지역 변수입니다.
+bb.cpp(831): warning C4101: 'bmih' :참조되지 않은 지역 변수입니다.
+bb.cpp(823): warning C4101: 'cBitmap' :참조되지 않은 지역 변수입니다.
+bb.cpp(848): warning C4101: 'hr' :참조되지 않은 지역 변수입니다.
+bb.cpp(833): warning C4101: 'y' :참조되지 않은 지역 변수입니다.
+bb.cpp(832): warning C4101: 'bits' :참조되지 않은 지역 변수입니다.
+bb.cpp(816): warning C4101: 'index' :참조되지 않은 지역 변수입니다.
+bb.cpp(851): warning C4101: 'mX' :참조되지 않은 지역 변수입니다.
+bb.cpp(821): warning C4101: 'bmp' :참조되지 않은 지역 변수입니다.
+bb.cpp(830): warning C4101: 'bmfh' :참조되지 않은 지역 변수입니다.
+bb.cpp(852): warning C4101: 'mY' :참조되지 않은 지역 변수입니다.
   코드를 생성하고 있습니다.
   2 of 139 functions ( 1.4%) were compiled, the rest were copied from previous compilation.
     0 functions were new in current compilation
