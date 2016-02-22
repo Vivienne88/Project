@@ -590,8 +590,17 @@ public:
 
 	int get_dns(char* host_name)
 	{
-		//호스트 받아오기
-		remoteHost = gethostbyname(host_name);
+		//호스트 파싱
+		if (host_name[strlen(host_name) - 1] == '\n')
+		{
+			char* temp = new char[strlen(host_name) - 1];
+			memset(temp, 0, strlen(host_name) - 1);
+			memcpy(temp, host_name, strlen(host_name) - 1);
+			remoteHost = gethostbyname(temp);
+		}
+		else
+			remoteHost = gethostbyname(host_name);
+
 		int i = 0;
 		if (remoteHost == NULL)
 		{
@@ -911,14 +920,17 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					//m_socket.Connect(m_dns.get_ip(), 443);
 					//m_socket.Connect(m_dns.get_ip(), 8888);
 					strcat(new_str, "GET ");
-					strcat(new_str, m_parser.index);
 
-					//strcat(new_str, "/static/newsstand/up/2014/0715/092.gif");
-
-					//strcat(new_str, "/");
-					//strcat(new_str, "/static/newsstand/up/2014/0715/032.gif");
-					//strcat(new_str, "/nexon.bmp");
-					//strcat(new_str, "/img.jpg");
+					//요청 메세지 상황에 따라 파싱
+					if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
+					{
+						char* temp = new char[strlen(m_parser.index) - 1];
+						memset(temp, 0, strlen(m_parser.index) - 1);
+						memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
+						strcat(new_str, temp);
+					}
+					else
+						strcat(new_str, m_parser.index);
 
 					strcat(new_str, " HTTP/1.1\r\n\r\n");
 					//strcat(new_str, "Content-Type : image/gif;\r\n\r\n");
