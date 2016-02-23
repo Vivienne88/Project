@@ -11,22 +11,28 @@
 
 using namespace std;
 
+//UTF-8 변환
 #pragma execution_character_set("utf-8")
+
+//콘솔
 #pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
 
+//소켓
 #pragma comment(lib, "Ws2_32.lib")
 
-
+//공용 컨트롤
 #pragma comment(linker,"\"/manifestdependency:type='win32' \
 name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
 processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
+//윈도우 ID
 #define ID_BUTTON1 9000
 #define ID_EDIT1 9001
 
-//포트 번호, 스트링 길이
+//스트링 길이
 #define MAXLEN 1024
 
+//함수 원형
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 
 HINSTANCE g_hInst;
@@ -44,42 +50,17 @@ SCROLLINFO si;
 //총 받은 패킷 수
 int yPos_total = 0;
 int text_yPos = 0;
+
 //텍스트 내의 공백 수
 int back_total = 0;
 
-//에디트
+//Win32 변수
 HWND hEdit;
-
-//Syslink위한 Rect와 HWND
 RECT* m_rect = NULL;
 HWND* m_link = NULL;
-
 WNDPROC oldEditProc;
 
-/*
-int wcharlen(wchar_t* buffer, int maybe_overflow)
-{
-try
-{
-int i = 0;
-while(1)
-{
-if (buffer[i] == '\n')
-return i;
-if (i > maybe_overflow)
-throw 1;
-i++;
-}
-}
-catch(int error)
-{
-if (error)
-{
-cout << "wcharlen Overflow" << endl;
-}
-}
-}*/
-
+//Rect 초기화해주는 함수
 int CalculateRect(RECT* rect, int x, int y, int width, int height)
 {
 	if (rect)
@@ -95,6 +76,7 @@ int CalculateRect(RECT* rect, int x, int y, int width, int height)
 	return 0;
 }
 
+//멀티바이트에서 유니바이트로 변환해주는 함수
 int Multi2Uni(char* buffer, int buffer_size, wchar_t* output)
 {
 	int wlen = MultiByteToWideChar(CP_UTF8, 0, buffer, strlen(buffer), 0, 0);
@@ -107,6 +89,7 @@ int Multi2Uni(char* buffer, int buffer_size, wchar_t* output)
 		return 1;
 }
 
+//SysLink 생성해주는 함수
 HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
 {
 	char temp_str[500] = " ";
@@ -131,6 +114,7 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
 		hDlg, (HMENU)ID, NULL, NULL);
 }
 
+//흑백 비트맵 생성해주는 함수
 static HBITMAP Create8bppBitmap(HDC hdc, int width, int height, LPVOID pBits = NULL)
 {
 	BITMAPINFO *bmi = (BITMAPINFO *)malloc(sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 256);
@@ -168,6 +152,7 @@ static HBITMAP Create8bppBitmap(HDC hdc, int width, int height, LPVOID pBits = N
 	return hbmp;
 }
 
+//컬러 비트맵 생성해주는 함수
 static HBITMAP CreateBitmapFromPixels(HDC hDC, UINT uWidth, UINT uHeight, UINT uBitsPerPixel, LPVOID pBits)
 {
 	if (uBitsPerPixel < 8) // NOT IMPLEMENTED YET
@@ -202,13 +187,16 @@ static HBITMAP CreateBitmapFromPixels(HDC hDC, UINT uWidth, UINT uHeight, UINT u
 	return hBitmap;
 }
 
+//Char에서 Unsigned Char로 변환해주는 함수
 unsigned char* char2unsigned(char* data)
 {
 	return reinterpret_cast<unsigned char*>(data);
 }
 
+//아래 함수 위한 열거체
 enum option { FORWARD, BACKWARD };
 
+//버퍼에서 다음줄, 이전줄 위치 가져오는 함수
 int Set_yPos(wchar_t* buffer, int buffer_size, int yPos, enum option type)
 {
 	int m_count = 0;
@@ -235,6 +223,7 @@ int Set_yPos(wchar_t* buffer, int buffer_size, int yPos, enum option type)
 	return 0;
 }
 
+//대칭되는 Tag 가져오는 함수
 int Parse_Tag3(char* buffer, int buffer_size, char* input, char* output)
 {
 	bool tag_flag = 0;
@@ -316,6 +305,7 @@ int Parse_Tag3(char* buffer, int buffer_size, char* input, char* output)
 		return 1;
 }
 
+//버퍼에서 index번째 줄에 있는 원소 가져오기
 int Get_Parse_Tag2(char* input, int buffer_size, int index, char* output)
 {
 	int count = 0;
@@ -334,6 +324,7 @@ int Get_Parse_Tag2(char* input, int buffer_size, int index, char* output)
 	return 0;
 }
 
+//img src종류의 Tag에 " " 가져오기
 int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 {
 	bool tag_flag = 0;
@@ -938,9 +929,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	{
 	case WM_CREATE:
 		hEdit = CreateWindow(TEXT("edit"), NULL, WS_CHILD | WS_VISIBLE | WS_BORDER |
-			ES_AUTOHSCROLL, 10, 10, 200, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
+			ES_AUTOHSCROLL, 10, 10, rt.right- 30 - 100, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
 		CreateWindow(TEXT("button"), TEXT("입력"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-			10, 50, 100, 25, hWnd, (HMENU)ID_BUTTON1, g_hInst, NULL);
+			rt.right - 10 - 100, 10, 100, 25, hWnd, (HMENU)ID_BUTTON1, g_hInst, NULL);
 		oldEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)subEditProc);
 
 		return 0;
@@ -1078,7 +1069,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 				for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
 				{
-					CalculateRect(m_rect + i, 0, 0 + (16 * i), client_rect.right, 16);
+					CalculateRect(m_rect + i, 0, 50 + (16 * i), client_rect.right, 16);
 					//CalculateRect(m_rect + i, 0, 0+(15*i), strlen(rbuf)*8, 15);
 					m_link[i] = CreateSysLink(hWnd, m_rect[i], i, rbuf, strlen(str_buffer));
 					memset(rbuf, 0, yPos_total);
