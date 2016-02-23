@@ -39,6 +39,7 @@ char* buf_temp = NULL;
 char* str_buffer = NULL;
 wchar_t* uni = NULL;
 BITMAPINFO bmi;
+SCROLLINFO si;
 
 //총 받은 패킷 수
 int yPos_total = 0;
@@ -46,13 +47,14 @@ int text_yPos = 0;
 //텍스트 내의 공백 수
 int back_total = 0;
 
-
 //에디트
 HWND hEdit;
 
 //Syslink위한 Rect와 HWND
 RECT* m_rect = NULL;
 HWND* m_link = NULL;
+
+WNDPROC oldEditProc;
 
 /*
 int wcharlen(wchar_t* buffer, int maybe_overflow)
@@ -433,6 +435,7 @@ class Parser
 public:
 	char address[1024];
 	char index[1024];
+	char port[10];
 
 	//배열 초기화 생성자
 	Parser()
@@ -442,6 +445,33 @@ public:
 			address[i] = '\0';
 			index[i] = '\0';
 		}
+		memset(port, 0, 10);
+	}
+
+	//: 위치 반환하는 함수
+	int Colon_Pos(char* buffer, int buf_size, bool HTTP_flag)
+	{
+		if (HTTP_flag)
+		{
+			for (int i = 7; i < buf_size; i++)
+			{
+				if (buffer[i] == ':')
+				{
+					return i;
+				}
+			}
+		}
+		else
+		{
+			for (int i = 0; i < buf_size; i++)
+			{
+				if (buffer[i] == ':')
+				{
+					return i;
+				}
+			}
+		}
+		return 0;
 	}
 
 	//괄호 위치 반환하는 함수
@@ -471,7 +501,7 @@ public:
 			}
 			pos++;
 		}
-		return -1;
+		return 0;
 	}
 
 	//0됨, 1안됨
@@ -479,12 +509,18 @@ public:
 	//option 1 일 경우 None
 	int HTTP_parser(char* buffer, int buf_size, bool option)
 	{
+		memset(address, 0, MAXLEN);
+		memset(index, 0, MAXLEN);
+		memset(port, 0, 10);
+
 		//HTTP가 있을 경우
 		bool HTTP_flag = 0;
 		bool WWW_flag = 0;
 		bool Pos_flag = 0;
+		bool Colon_flag = 0;
 		int dot_count = 0;
 		int Pos = 0;
+		int cPos = 0;
 
 		if (strncmp(buffer, "HTTP://", 7) == 0)
 			HTTP_flag = 1;
@@ -512,36 +548,57 @@ public:
 
 		//괄호 위치
 		Pos = Braket_Pos(buffer, buf_size, HTTP_flag, &dot_count);
-		if (Pos == -1)
-		{
-			Pos = buf_size;
-			Pos_flag = 0;
-		}
-		else
+
+		//괄호가 있을 경우
+		if (Pos)
 			Pos_flag = 1;
+		else
+			Pos = buf_size;
+
+		// : 위치
+		cPos = Colon_Pos(buffer, buf_size, HTTP_flag);
+
+		// :가 있을 경우
+		if (cPos)
+			Colon_flag = 1;
+		else
+		{
+			port[0] = '8';
+			port[1] = '0';
+			port[2] = '\n';
+		}
 
 		//주소 가져오기
 		if (HTTP_flag)
-			if (WWW_flag)
-				strncpy(address, buffer + 7, Pos - 7);
+			if (cPos)
+				strncpy(address, buffer + 7, cPos - 7);
 			else
-			{
-				/*for (int i = 0; i < 3; i++)
-				address[i] = 'w';
-				address[3] = '.';*/
 				strncpy(address, buffer + 7, Pos - 7);
-			}
+		/*if (WWW_flag)
+		strncpy(address, buffer + 7, Pos - 7);
 		else
-			if (WWW_flag)
-				strncpy(address, buffer, Pos);
+		{
+		strncpy(address, buffer + 7, Pos - 7);
+		}*/
+		else
+			if (cPos)
+				strncpy(address, buffer, cPos);
 			else
-			{
-				/*for (int i = 0; i < 3; i++)
-				address[i] = 'w';
-				address[3] = '.';*/
 				strncpy(address, buffer, Pos);
-			}
+		/*if (WWW_flag)
+		strncpy(address, buffer, Pos);
+		else
+		{
+		strncpy(address, buffer, Pos);
+		}*/
 
+		//Port 가져오기
+		if (Colon_flag)
+		{
+			//:의 위치때문에 1더하고 뺌
+			strncpy(port, buffer + cPos + 1, Pos - cPos - 1);
+			printf("%s\n", port);
+		}
 		//html 주소
 		if (option)
 		{
@@ -697,7 +754,7 @@ public:
 		{
 			return 1;
 		}
-		
+
 		int timeout = 1500;
 		setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(int));
 
@@ -755,9 +812,11 @@ public:
 			delete[] buf_temp;
 			//buf_temp = NULL;
 		}
-		if (temp == -1)
+		if (temp == SOCKET_ERROR)
+		{
+			WSAGetLastError();
 			printf("Recv Error!\n");
-
+		}
 
 
 		//printf("%s", rbuf);
@@ -814,6 +873,24 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 	return (int)Message.wParam;
 }
 
+LRESULT CALLBACK subEditProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_KEYDOWN:
+		switch (wParam)
+		{
+		case VK_RETURN:
+			SendMessage(GetParent(hWnd), WM_COMMAND, ID_BUTTON1, NULL);
+			break;  //or return 0; if you don't want to pass it further to def proc
+					//If not your key, skip to default:
+		}
+	default:
+		return CallWindowProc(oldEditProc, hWnd, msg, wParam, lParam);
+	}
+	return 0;
+}
+
 LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 {
 	//변수 선언
@@ -839,8 +916,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	void* bits;
 	int x = 0, y;               // horizontal and vertical coordinates
 
-								//SCROLLBAR
-	SCROLLINFO si;
+	HWND hwndTest;
 
 	static int xClient;     // width of client area 
 	static int yClient;     // height of client area 
@@ -857,22 +933,23 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	//마우스 좌표
 	int mX;
 	int mY;
+	
 	switch (iMessage)
 	{
-
 	case WM_CREATE:
 		hEdit = CreateWindow(TEXT("edit"), NULL, WS_CHILD | WS_VISIBLE | WS_BORDER |
 			ES_AUTOHSCROLL, 10, 10, 200, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
 		CreateWindow(TEXT("button"), TEXT("입력"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
 			10, 50, 100, 25, hWnd, (HMENU)ID_BUTTON1, g_hInst, NULL);
+		oldEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)subEditProc);
+
 		return 0;
 
 	case WM_COMMAND:
+		
 		switch (LOWORD(wParam)) {
-
-			//버튼 클릭
 		case ID_BUTTON1:
-			
+
 			if (m_link)
 			{
 				for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
@@ -887,7 +964,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				m_link = NULL;
 				InvalidateRect(hWnd, &rt, 0);
 			}
-			
 
 			//InvalidateRect(hWnd, &rt, TRUE);
 			if (uni)
@@ -916,16 +992,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				if (m_dns.get_dns(m_parser.address) != 1)
 				{
 					//연결 및 파싱
-					m_socket.Connect(m_dns.get_ip(), 80);
+					m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
 					//m_socket.Connect(m_dns.get_ip(), 443);
 					//m_socket.Connect(m_dns.get_ip(), 8888);
+					memset(new_str, 0, 500);
 					strcat(new_str, "GET ");
 
 					//요청 메세지 상황에 따라 파싱
 					if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
 					{
+
 						char* temp = new char[strlen(m_parser.index) - 1];
-						memset(temp, 0, strlen(m_parser.index) - 1);
+						memset(temp, 0, strlen(m_parser.index));
 						memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
 						strcat(new_str, temp);
 					}
@@ -974,6 +1052,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 			}
 
+			//Scroll 초기화
+			GetScrollInfo(hWnd, SB_VERT, &si);
+			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
+			SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+			SetScrollPos(hWnd, SB_VERT, 0, 1);
+			InvalidateRect(hWnd, &rt, 1);
+			UpdateWindow(hWnd);
+
 			//SysLink 생성
 			if (yPos_total)
 			{
@@ -987,6 +1073,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				int temp_x = 0;
 				int temp_y = 0;
 				memset(rbuf, 0, yPos_total);
+
+
 
 				for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
 				{
@@ -1011,9 +1099,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			switch (HIWORD(wParam)) {
 			case EN_CHANGE:
 				GetWindowTextA(hEdit, str, 128);
+				break;
+
 			}
 		}
 		return 0;
+
 	case WM_NOTIFY:
 
 		switch (((LPNMHDR)IParam)->code)
@@ -1070,9 +1161,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 		*/
 
 	case WM_PAINT:
-
-		//버튼이 존재할 경우 link 삭제
-		
 
 		hdc = BeginPaint(hWnd, &ps);
 		//DrawTextA(hdc, rbuf, -1, &rt, DT_LEFT);
