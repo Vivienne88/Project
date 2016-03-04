@@ -22,7 +22,7 @@ using namespace Gdiplus::DllExports;
 #pragma execution_character_set("utf-8")
 
 //콘솔
-#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
+//#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
 
 //소켓
 #pragma comment(lib, "Ws2_32.lib")
@@ -43,9 +43,6 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 //함수 원형
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);
-
-HINSTANCE g_hInst;
-LPCTSTR lpszClass = TEXT("Project");
 
 //버퍼 생성
 char buf[MAXLEN];
@@ -68,41 +65,49 @@ int text_yPos = 0;
 int back_total = 0;
 
 //Win32 변수
+HINSTANCE g_hInst;
+LPCTSTR lpszClass = TEXT("Project");
 HWND hEdit;
 RECT* m_rect = NULL;
 HWND* m_link = NULL;
 WNDPROC oldEditProc;
 BYTE* pImageBuffer;
 
-
 //이미지 저장 함수
 int SaveStream(Image image, WCHAR* type, WCHAR* filename)
 {
+	//스트림 생성
 	IStream *Encodingbuffer;
 	CreateStreamOnHGlobal(NULL, true, &Encodingbuffer);
 
+	//파일 포맷 설정
 	CLSID m_pngClsid;
 	GetEncoderClsid(type, &m_pngClsid);
 
+	//이미지 저장
 	image.Save(Encodingbuffer, &m_pngClsid, NULL);
 	Bitmap *bitmap = new Bitmap(Encodingbuffer);
-
 	bitmap->Save(filename, &m_pngClsid, NULL);
+
 	return 1;
 }
 
 //이미지 로드 함수
 int LoadStream(char* buf, int buffer_size, Image* Ip)
 {
+	//스트림 생성
 	IStream *m_pIStream_in;
 	CreateStreamOnHGlobal(NULL, true, &m_pIStream_in);
 
+	//스트림에 데이터 쓰기
 	m_pIStream_in->Write(body_buffer, yPos_body, NULL);
 	if (!m_pIStream_in)
 	{
 		cout << "Stream is Empty!" << endl;
 		return 0;
 	}
+
+	//스트림 내용으로 이미지 객체 생성
 	Ip = new Image(m_pIStream_in);
 	return 1;
 }
@@ -110,22 +115,28 @@ int LoadStream(char* buf, int buffer_size, Image* Ip)
 //이미지 로드 후 출력 함수
 int DrawStream(HDC hdc, char* buf, int buffer_size, int x, int y)
 {
+	//스트림 생성
 	IStream *m_pIStream_in;
 	CreateStreamOnHGlobal(NULL, true, &m_pIStream_in);
 
+	//스트림에 데이터 쓰기
 	m_pIStream_in->Write(body_buffer, yPos_body, NULL);
 	if (!m_pIStream_in)
 	{
 		cout << "Stream is Empty!" << endl;
 		return 0;
 	}
+
+	//스트림 내용으로 이미지 객체 생성 및 출력
 	Gdiplus::Image image(m_pIStream_in);
 	Graphics* g = new Graphics(hdc);
 	if(g!=NULL)
 		g->DrawImage(&image, x, y);
+
 	return 1;
 }
 
+//헤더와 바디 분리해야되는 위치 반환하는 함수
 int FindHeaderPos(char* buf, int buf_size, int m_count)
 {
 	int count = 0;
@@ -141,6 +152,7 @@ int FindHeaderPos(char* buf, int buf_size, int m_count)
 	return 0;
 }
 
+//파일 포맷 결정해주는 함수
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
 {
 	UINT num = 0;          // number of image encoders 
@@ -181,10 +193,8 @@ int CalculateRect(RECT* rect, int x, int y, int width, int height)
 	if (rect)
 	{
 		rect->top = y;
-		//마이너스 일 수도 있음
 		rect->bottom = y + height;
 		rect->left = x;
-		//마이너스 일 수도 있음
 		rect->right = x + width;
 		return 1;
 	}
@@ -209,19 +219,18 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer)
 	char temp_str[3000];
 	memset(temp_str, 0, 3000);
 
+	//링크 내용 작성
 	strcat(temp_str, "<A HREF=\"");
 	strcat(temp_str, buffer);
 	strcat(temp_str, "\">");
 	strcat(temp_str, buffer);
 	strcat(temp_str, "</A>");
 
-	//string new_str;
-	//new_str = char2string(temp_str);
-
+	//멀티바이트 유니코드로 변경
 	wchar_t* w_str = new wchar_t[3000]();
 	Multi2Uni(temp_str, strlen(temp_str), w_str);
-	//wcscat(w_str,);
-
+	
+	//SysLink 생성
 	return CreateWindowEx(0, WC_LINK,
 		w_str,
 		WS_VISIBLE | WS_CHILD | WS_TABSTOP,
@@ -236,6 +245,7 @@ enum option { FORWARD, BACKWARD };
 int Set_yPos(char* buffer, int buffer_size, int yPos, enum option type)
 {
 	int m_count = 0;
+	//버퍼 현재 위치에서 앞 또는 뒤에 있는 \n 찾기
 	if (type == FORWARD)
 	{
 		for (int i = 0; i < buffer_size - yPos; i++)
@@ -256,7 +266,6 @@ int Set_yPos(char* buffer, int buffer_size, int yPos, enum option type)
 		}
 		return 0;
 	}
-	return 0;
 }
 
 //대칭되는 Tag 가져오는 함수
@@ -422,7 +431,6 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 			}
 		}
 	}
-
 	return 0;
 }
 
@@ -465,15 +473,8 @@ int Parse_Tag(char* buffer, int buffer_size, char* output)
 			start_flag = 1;
 		}
 	}
-
-	//변환
-	//ANSI to UNI
-
-
 	return 0;
 }
-
-
 
 class Parser
 {
@@ -698,9 +699,7 @@ public:
 		}
 		else
 			remoteHost = gethostbyname(host_name);
-	
-		//여기 수정중
-		//getaddrinfo()
+
 		if (remoteHost == NULL)
 		{
 			dwError = WSAGetLastError();
@@ -840,38 +839,18 @@ public:
 		while ((temp = recv(sockfd, buf, MAXLEN, 0)) > 0)
 		{
 			//버퍼 합치기
-			//memcpy(rbuf + total, buf, strlen(buf));
 			memcpy(rbuf + total, buf, temp);
 			total += temp;
 			buf_temp = new char[total]();
 
 			memcpy(buf_temp, rbuf, total);
 			delete[] rbuf;
-			//rbuf = NULL;
 
 			//크기 늘리기
 			rbuf = new char[MAXLEN + total]();
 			memcpy(rbuf, buf_temp, total);
 			delete[] buf_temp;
-			//buf_temp = NULL;
 		}
-
-		/*if (temp == SOCKET_ERROR)
-		{
-		WSAGetLastError();
-		printf("Recv Error!\n");
-		}*/
-		/*uni = new wchar_t[total];
-		Multi2Uni(rbuf, total, uni);
-
-		for (int i = 0; i < 5000; i++)
-		{
-		printf("%c", uni[i]);
-		}*/
-
-		//printf("%s", rbuf);
-
-		//wprintf(L"%ls", uni);
 		return 0;
 	}
 
@@ -922,10 +901,10 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 		DispatchMessage(&Message);
 	}
 
-
 	return (int)Message.wParam;
 }
 
+//EditText 메세지 받기 위한 함수
 LRESULT CALLBACK subEditProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	switch (msg)
@@ -949,8 +928,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	//변수 선언
 	HDC hdc;
 	PAINTSTRUCT ps;
-	char str[128];
-	char index[128];
+	char str[ADDRESSLEN];
+	char index[ADDRESSLEN];
 	char new_str[1000] = "";
 	int parse_int = 0;
 	RECT rt;
@@ -993,16 +972,18 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
 
-	//m_image.Initialize();
 	int j = 0;
 
 	switch (iMessage)
 	{
 	case WM_CREATE:
+		//에디트 생성
 		hEdit = CreateWindow(TEXT("edit"), NULL, WS_CHILD | WS_VISIBLE | WS_BORDER |
 			ES_AUTOHSCROLL, 10, 10, rt.right - 30 - 100, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
+		//버튼 생성
 		CreateWindow(TEXT("button"), TEXT("입력"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
 			rt.right - 10 - 100, 10, 100, 25, hWnd, (HMENU)ID_BUTTON1, g_hInst, NULL);
+		//에디트 메세지 핸들러
 		oldEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)subEditProc);
 
 		return 0;
@@ -1011,46 +992,49 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 		switch (LOWORD(wParam)) {
 		case ID_BUTTON1:
-
+			//초기화 
+			//기존의 SysLink 존재할 경우 모두 삭제
 			if (m_link)
 			{
 				for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 				{
 					DestroyWindow(m_link[i]);
 				}
-				//RECT 정보 지우기
 				delete[] m_rect;
 				m_rect = NULL;
-				//HWND 정보 지우기	
 				delete[] m_link;
 				m_link = NULL;
 				InvalidateRect(hWnd, &rt, 0);
 			}
-
-			//InvalidateRect(hWnd, &rt, TRUE);
+			//uni코드 존재할 경우 삭제
 			if (uni)
 			{
 				delete[] uni;
 				uni = NULL;
 			}
-			GetWindowTextA(hEdit, str, 128);
-
-			//printf("Input : %s\n", str);
-			//printf("Address : %s\n", m_parser.address);
-			//printf("Index : %s\n", m_parser.index);
+			GetWindowTextA(hEdit, str, ADDRESSLEN);
 
 			//GDI+ 초기화
 			GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
-			//Parsing 되었을 경우
 			do
 			{
 				m_dns.Initialize();
 				memset(m_parser.address, 0, ADDRESSLEN);
 				memset(m_parser.index, 0, ADDRESSLEN);
 
-				if (j==0)
+				//첫 실행시
+				if (j == 0)
+				{
 					parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
+	
+					//파싱에 실패하였을 경우
+					if (!parse_int)
+					{
+						MessageBox(hWnd, L"주소를 입력해주세요.", L"알림창", MB_OK);
+						break;
+					}
+				}		
 				else
 				{
 					//rbuf에서 m_parser.index, m_parser.address값 
@@ -1067,6 +1051,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				{
 					//연결 및 파싱
 					m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
+
+					//요청 메세지 담는 변수 : new_str
 					memset(new_str, 0, 1000);
 					strcat(new_str, "GET ");
 
@@ -1104,9 +1090,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 					//Header, Body Parsing
 					int HeaderPos = FindHeaderPos(rbuf, yPos_total, 4);
-					//printf("%d\n", HeaderPos);
-
-					//있을 경우 삭제
+					
+					//초기화
 					if (header_buffer != NULL)
 						delete[] header_buffer;
 					if (body_buffer != NULL)
@@ -1115,27 +1100,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					//헤더 가져오기
 					header_buffer = new char[HeaderPos]();
 					memcpy(header_buffer, rbuf, HeaderPos);
-					//printf("Header : %s\n",header_buffer);
 
 					//바디 가져오기
 					body_buffer = new char[yPos_total - HeaderPos]();
 					yPos_body = yPos_total - HeaderPos;
 					memcpy(body_buffer, rbuf + HeaderPos, yPos_body);
-					//printf("Body : %s\n", body_buffer);
-					//cout << "Body : " << body_buffer << endl;
 
-
-					//Parse_Tag(rbuf, yPos_total, str_buffer);
-					//uni = new wchar_t[yPos_total];
-					//Multi2Uni(str_buffer, yPos_total, uni);
-
-					//wprintf(L"%ls", uni);
-					//대칭 Tag 찾는 것
-					//Parse_Tag3(rbuf, total, "body", str_buffer);
-					//memset(rbuf, 0, total);
-					//printf("%s", str_buffer);
-
-					//Img 같은 Tag 찾는 것
+					//처음의 경우 이미지와 하이퍼 링크를 위한 파싱 수행
 					if (j == 0)
 					{
 						str_buffer = new char[yPos_total]();
@@ -1145,40 +1116,28 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 						memset(img_buffer, 0, yPos_total);
 
 						Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
-						//printf("str_buffer : %s\n", str_buffer);
 						Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer);
-						//printf("img_buffer : %s\n", img_buffer);
-
 					}
-
-					//printf("%s", str_buffer);
-
-					//memset(rbuf, 0, m_socket.GetPacketNum() + strlen(buf));
-					//Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
-					//printf("====");
 
 					j++;
 					memset(rbuf, 0, MAXLEN);
 
 					InvalidateRect(hWnd, NULL, true);
 					UpdateWindow(hWnd);
-					//m_socket.Close();
+					m_socket.Close();
 				}
 				else//연결 실패했을 경우 종료
+				{
+					if(j==0)
+						MessageBox(hWnd, L"호스트를 찾을 수 없습니다.", L"알림창", MB_OK);
 					break;
+				}
 			} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf) == 1);
 			
 			cout << "End Request\n" << endl;
-			//Invalidate
-
+			
 			//GDI+ 종료
 			GdiplusShutdown(gdiplusToken);
-
-			/*RedrawWindow(hWnd, &rt, NULL, RDW_ERASENOW);
-			InvalidateRect(hWnd, NULL, false);
-			UpdateWindow(hWnd);*/
-
-			//}str_buffer
 
 			//Scroll 초기화
 			GetScrollInfo(hWnd, SB_VERT, &si);
@@ -1186,13 +1145,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
 			SetScrollPos(hWnd, SB_VERT, 0, 1);
 			InvalidateRect(hWnd, &rt, true);
-			//InvalidateRect(&rt);
 			UpdateWindow(hWnd);
 
 			//SysLink 생성
 			if (yPos_total)
 			{
-				//다수
+				//초기화
 				if (m_link != NULL)
 					delete[] m_link;
 				if (m_rect != NULL)
@@ -1210,33 +1168,29 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 				for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 				{
+					//하이퍼 링크를 위한 Rectangle 계산
 					CalculateRect(m_rect + i, 0, 50 + (16 * i), client_rect.right, 16);
-					//CalculateRect(m_rect + i, 0, 0+(15*i), strlen(rbuf)*8, 15);
+					
+					//하이퍼 링크 생성
 					m_link[i] = CreateSysLink(hWnd, m_rect[i], i, rbuf);
+					
+					//초기화
 					memset(rbuf, 0, MAXLEN);
 				}
-
+				
+				//화면 갱신
 				InvalidateRect(hWnd, &rt, 1);
 				UpdateWindow(hWnd);
-
-				//InvalidateRect(hWnd, &rt, 0);
-				//UpdateWindow(hWnd);
-
-				//하나
-				/*memset(rbuf, 0, yPos_total);
-				tag_temp = Get_Parse_Tag2(str_buffer,  yPos_total, 0, rbuf);
-				CalculateRect(m_rect, 0, 0, client_rect.right, 15);
-				CreateSysLink(hWnd, m_rect[0], 0, rbuf, strlen(str_buffer));
-				*/
 			}
 
 			break;
 
-			//EDIT
+		//에디트 핸들러
 		case ID_EDIT1:
 			switch (HIWORD(wParam)) {
+			//변경이 되었을 경우 가져오기
 			case EN_CHANGE:
-				GetWindowTextA(hEdit, str, 128);
+				GetWindowTextA(hEdit, str, ADDRESSLEN);
 				break;
 
 			}
@@ -1255,27 +1209,30 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			PNMLINK pNMLink = (PNMLINK)IParam;
 			LITEM   item = pNMLink->item;
 
-			//Hyperlink 생성
 			memset(rbuf, 0, yPos_total);
 
+			//어떤 하이퍼링크가 눌렸는지 확인
 			for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 			{
-				//ID 검사
+				//ID를 통해 하이퍼링크 구별
 				if (((LPNMHDR)IParam)->idFrom == (UINT)i)
 				{
 					//ShellExecute(NULL, L"open", L"Iexplore.exe", item.szUrl, NULL, SW_SHOW);
 					SetWindowText(hEdit, item.szUrl);
 				}
+
+				//하이퍼 링크 제거
 				DestroyWindow(m_link[i]);
 			}
 
+			//초기화
 			InvalidateRect(hWnd, &rt, 0);
-			//RECT 정보 지우기
 			delete[] m_rect;
 			m_rect = NULL;
-			//HWND 정보 지우기	
 			delete[] m_link;
 			m_link = NULL;
+
+			//버튼 클릭 메세지 보내기
 			SendMessage(hWnd, WM_COMMAND, ID_BUTTON1, NULL);
 			break;
 		}
@@ -1283,38 +1240,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 		break;
 
-		/*case WM_LBUTTONDOWN:
-		POINT pt;
-		GetCursorPos(&pt);
-		mX = pt.x;
-		mY = pt.y;
-
-		if (PtInRegion(CreateRectRgnIndirect(&rt) , mX, mY) != 0)
-		{
-		MessageBox(hWnd, L"You have clicked INSIDE hRgn", L"Notify", MB_OK);
-		}
-		else
-		MessageBox(hWnd, L"You have clicked OUTSIDE hRgn", L"Notify", MB_OK);
-		return 0;
-		*/
-
 	case WM_PAINT:
-
-
-		//DrawText(hdc, uni + (text_yPos), -1, &rt, DT_LEFT);
-
-		//m_image.Printimage();
-
+		
 		hdc = BeginPaint(hWnd, &ps);
 
 		//받은 패킷이 존재하면
 		if (yPos_total)
 		{
 			//버퍼에 있는 이미지 그리기
-			//GET하는 것을 함수로바꿔서 여러번 요청 출력
 			DrawStream(hdc, body_buffer, yPos_body, 0, 50);
 		}
-
 		EndPaint(hWnd, &ps);
 		return 0;
 
@@ -1425,6 +1360,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	case WM_DESTROY:
 		PostQuitMessage(0);
 		return 0;
+
 	}
 
 	return(DefWindowProc(hWnd, iMessage, wParam, IParam));
