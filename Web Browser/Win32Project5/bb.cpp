@@ -8,8 +8,15 @@
 #include <atlstr.h> 
 #include <wchar.h>
 #include <commctrl.h>
+#include <gdiplus.h>
+#include <gdiplusflat.h>
 
 using namespace std;
+using namespace Gdiplus;
+using namespace Gdiplus::DllExports;
+
+//이미지
+#pragma comment (lib,"Gdiplus.lib")
 
 //UTF-8 변환
 #pragma execution_character_set("utf-8")
@@ -30,10 +37,11 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #define ID_EDIT1 9001
 
 //스트링 길이
-#define MAXLEN 1024
+#define MAXLEN 65537
 
 //함수 원형
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);
 
 HINSTANCE g_hInst;
 LPCTSTR lpszClass = TEXT("Project");
@@ -43,12 +51,16 @@ char buf[MAXLEN];
 char* rbuf = NULL;
 char* buf_temp = NULL;
 char* str_buffer = NULL;
+char* header_buffer = NULL;
+char* body_buffer = NULL;
+char* img_buffer = NULL;
 wchar_t* uni = NULL;
 BITMAPINFO bmi;
 SCROLLINFO si;
 
 //총 받은 패킷 수
 int yPos_total = 0;
+int yPos_body = 0;
 int text_yPos = 0;
 
 //텍스트 내의 공백 수
@@ -59,6 +71,107 @@ HWND hEdit;
 RECT* m_rect = NULL;
 HWND* m_link = NULL;
 WNDPROC oldEditProc;
+BYTE* pImageBuffer;
+
+
+//이미지 저장 함수
+int SaveStream(Image image, WCHAR* type, WCHAR* filename)
+{
+	IStream *Encodingbuffer;
+	CreateStreamOnHGlobal(NULL, true, &Encodingbuffer);
+
+	CLSID m_pngClsid;
+	GetEncoderClsid(type, &m_pngClsid);
+
+	image.Save(Encodingbuffer, &m_pngClsid, NULL);
+	Bitmap *bitmap = new Bitmap(Encodingbuffer);
+
+	bitmap->Save(filename, &m_pngClsid, NULL);
+	return 1;
+}
+
+//이미지 로드 함수
+int LoadStream(char* buf, int buffer_size, Image* Ip)
+{
+	IStream *m_pIStream_in;
+	CreateStreamOnHGlobal(NULL, true, &m_pIStream_in);
+
+	m_pIStream_in->Write(body_buffer, yPos_body, NULL);
+	if (!m_pIStream_in)
+	{
+		cout << "Stream is Empty!" << endl;
+		return 0;
+	}
+	Ip = new Image(m_pIStream_in);
+	return 1;
+}
+
+//이미지 로드 후 출력 함수
+int DrawStream(HDC hdc, char* buf, int buffer_size, int x, int y)
+{
+	IStream *m_pIStream_in;
+	CreateStreamOnHGlobal(NULL, true, &m_pIStream_in);
+
+	m_pIStream_in->Write(body_buffer, yPos_body, NULL);
+	if (!m_pIStream_in)
+	{
+		cout << "Stream is Empty!" << endl;
+		return 0;
+	}
+	Gdiplus::Image image(m_pIStream_in);
+	Graphics* g = new Graphics(hdc);
+	g->DrawImage(&image, x, y);
+	return 1;
+}
+
+int FindHeaderPos(char* buf, int buf_size, int m_count)
+{
+	int count = 0;
+	for (int i = 0; i < buf_size; i++)
+	{
+		if (buf[i] == '\n' || buf[i] == '\r')
+			count++;
+		else if (count == m_count)
+			return i;
+		else
+			count = 0;
+	}
+	return 0;
+}
+
+int GetEncoderClsid(const WCHAR* format, CLSID* pClsid)
+{
+	UINT num = 0;          // number of image encoders 
+	UINT size = 0;         // size of the image encoder array in bytes 
+
+	ImageCodecInfo* pImageCodecInfo = NULL;
+
+	GetImageEncodersSize(&num, &size);
+	if (size == 0)
+	{
+		return -1;  // Failure 
+	}
+
+	pImageCodecInfo = (ImageCodecInfo*)(malloc(size));
+	if (pImageCodecInfo == NULL)
+	{
+		return -1;  // Failure 
+	}
+	GetImageEncoders(num, size, pImageCodecInfo);
+
+	for (UINT j = 0; j < num; ++j)
+	{
+		if (wcscmp(pImageCodecInfo[j].MimeType, format) == 0)
+		{
+			*pClsid = pImageCodecInfo[j].Clsid;
+			free(pImageCodecInfo);
+			return j;  // Success 
+		}
+	}
+
+	free(pImageCodecInfo);
+	return -1;  // Failure 
+}
 
 //Rect 초기화해주는 함수
 int CalculateRect(RECT* rect, int x, int y, int width, int height)
@@ -81,7 +194,6 @@ int Multi2Uni(char* buffer, int buffer_size, wchar_t* output)
 {
 	int wlen = MultiByteToWideChar(CP_UTF8, 0, buffer, strlen(buffer), 0, 0);
 	MultiByteToWideChar(CP_UTF8, 0, buffer, strlen(buffer), output, wlen);
-	setlocale(LC_ALL, "korean");
 	//wprintf(L"%ls", uni);
 	if (wlen)
 		return 0;
@@ -90,9 +202,10 @@ int Multi2Uni(char* buffer, int buffer_size, wchar_t* output)
 }
 
 //SysLink 생성해주는 함수
-HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
+HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer)
 {
-	char temp_str[500] = " ";
+	char temp_str[1000];
+	memset(temp_str, 0, 1000);
 
 	strcat(temp_str, "<A HREF=\"");
 	strcat(temp_str, buffer);
@@ -103,7 +216,7 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
 	//string new_str;
 	//new_str = char2string(temp_str);
 
-	wchar_t* w_str = new wchar_t[500]();
+	wchar_t* w_str = new wchar_t[1000]();
 	Multi2Uni(temp_str, strlen(temp_str), w_str);
 	//wcscat(w_str,);
 
@@ -114,90 +227,11 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer, int buffer_size)
 		hDlg, (HMENU)ID, NULL, NULL);
 }
 
-//흑백 비트맵 생성해주는 함수
-static HBITMAP Create8bppBitmap(HDC hdc, int width, int height, LPVOID pBits = NULL)
-{
-	BITMAPINFO *bmi = (BITMAPINFO *)malloc(sizeof(BITMAPINFOHEADER) + sizeof(RGBQUAD) * 256);
-	BITMAPINFOHEADER &bih(bmi->bmiHeader);
-	bih.biSize = sizeof(BITMAPINFOHEADER);
-	bih.biWidth = width;
-	bih.biHeight = height;
-	bih.biPlanes = 1;
-	bih.biBitCount = 8;
-	bih.biCompression = BI_RGB;
-	bih.biSizeImage = 0;
-	bih.biXPelsPerMeter = 14173;
-	bih.biYPelsPerMeter = 14173;
-	bih.biClrUsed = 0;
-	bih.biClrImportant = 0;
-	for (int I = 0; I <= 255; I++)
-	{
-		bmi->bmiColors[I].rgbBlue = bmi->bmiColors[I].rgbGreen = bmi->bmiColors[I].rgbRed = (BYTE)I;
-		bmi->bmiColors[I].rgbReserved = 0;
-	}
-
-	void *Pixels = NULL;
-	HBITMAP hbmp = CreateDIBSection(hdc, bmi, DIB_RGB_COLORS, &Pixels, NULL, 0);
-
-	if (pBits != NULL)
-	{
-		//fill the bitmap
-		BYTE* pbBits = (BYTE*)pBits;
-		BYTE *Pix = (BYTE *)Pixels;
-		memcpy(Pix, pbBits, width * height);
-	}
-
-	free(bmi);
-
-	return hbmp;
-}
-
-//컬러 비트맵 생성해주는 함수
-static HBITMAP CreateBitmapFromPixels(HDC hDC, UINT uWidth, UINT uHeight, UINT uBitsPerPixel, LPVOID pBits)
-{
-	if (uBitsPerPixel < 8) // NOT IMPLEMENTED YET
-		return NULL;
-
-	if (uBitsPerPixel == 8)
-		return Create8bppBitmap(hDC, uWidth, uHeight, pBits);
-
-	HBITMAP hBitmap = 0;
-	if (!uWidth || !uHeight || !uBitsPerPixel)
-		return hBitmap;
-	LONG lBmpSize = uWidth * uHeight * (uBitsPerPixel / 8);
-	BITMAPINFO bmpInfo = { 0 };
-	bmpInfo.bmiHeader.biBitCount = uBitsPerPixel;
-	bmpInfo.bmiHeader.biHeight = uHeight;
-	bmpInfo.bmiHeader.biWidth = uWidth;
-	bmpInfo.bmiHeader.biPlanes = 1;
-	bmpInfo.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
-	// Pointer to access the pixels of bitmap
-	UINT * pPixels = 0;
-	hBitmap = CreateDIBSection(hDC, (BITMAPINFO *)&
-		bmpInfo, DIB_RGB_COLORS, (void **)&
-		pPixels, NULL, 0);
-
-	if (!hBitmap)
-		return hBitmap; // return if invalid bitmaps
-
-						//SetBitmapBits( hBitmap, lBmpSize, pBits);
-						// Directly Write
-	memcpy(pPixels, pBits, lBmpSize);
-
-	return hBitmap;
-}
-
-//Char에서 Unsigned Char로 변환해주는 함수
-unsigned char* char2unsigned(char* data)
-{
-	return reinterpret_cast<unsigned char*>(data);
-}
-
 //아래 함수 위한 열거체
 enum option { FORWARD, BACKWARD };
 
 //버퍼에서 다음줄, 이전줄 위치 가져오는 함수
-int Set_yPos(wchar_t* buffer, int buffer_size, int yPos, enum option type)
+int Set_yPos(char* buffer, int buffer_size, int yPos, enum option type)
 {
 	int m_count = 0;
 	if (type == FORWARD)
@@ -310,13 +344,28 @@ int Get_Parse_Tag2(char* input, int buffer_size, int index, char* output)
 {
 	int count = 0;
 	int output_index = 0;
+	int next_flag = 0;
+
 	for (int i = 0; i < buffer_size; i++)
 	{
-		if (index == count)
+		if ((input[i] == '[' || input[i] == '+') && next_flag == 0)
+		{
+			next_flag = 1;
+			index += 1;
+			count += 1;
+		}
+
+		if (index == count && next_flag == 0)
 			output[output_index++] = input[i];
 
 		if (input[i] == '\n')
+		{
 			count++;
+			if (next_flag)
+				memset(output, 0, MAXLEN);
+			output_index = 0;
+			next_flag = 0;
+		}
 
 		if (count > index)
 			return 1;
@@ -342,7 +391,9 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 		//start_flag 열리면 이제부터 저장 시작
 		if (start_flag)
 		{
-			output[output_index++] = buffer[i + 1];
+			if (buffer[i + 1] != '\r')
+				output[output_index++] = buffer[i + 1];
+
 			//저장 끝나는 시점
 			if (buffer[i + 2] == '"')
 			{
@@ -360,6 +411,7 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 				input_index = 0;
 				count = 0;
 			}
+
 			//모든 조건을 만족할 경우 start_flag
 			if (count == strlen(input) && buffer[i + 1] == '"' && strncmp(buffer + i + 2, "http://", 7) == 0)
 			{
@@ -500,8 +552,8 @@ public:
 	//option 1 일 경우 None
 	int HTTP_parser(char* buffer, int buf_size, bool option)
 	{
-		memset(address, 0, MAXLEN);
-		memset(index, 0, MAXLEN);
+		memset(address, 0, 1024);
+		memset(index, 0, 1024);
 		memset(port, 0, 10);
 
 		//HTTP가 있을 경우
@@ -547,7 +599,7 @@ public:
 			Pos = buf_size;
 
 		// : 위치
-		cPos = Colon_Pos(buffer, buf_size, HTTP_flag);
+		cPos = Colon_Pos(buffer, 5, HTTP_flag);
 
 		// :가 있을 경우
 		if (cPos)
@@ -565,12 +617,6 @@ public:
 				strncpy(address, buffer + 7, cPos - 7);
 			else
 				strncpy(address, buffer + 7, Pos - 7);
-		/*if (WWW_flag)
-		strncpy(address, buffer + 7, Pos - 7);
-		else
-		{
-		strncpy(address, buffer + 7, Pos - 7);
-		}*/
 		else
 			if (cPos)
 				strncpy(address, buffer, cPos);
@@ -641,8 +687,8 @@ public:
 		//호스트 파싱
 		if (host_name[strlen(host_name) - 1] == '\n')
 		{
-			char* temp = new char[strlen(host_name) - 1];
-			memset(temp, 0, strlen(host_name) - 1);
+			char* temp = new char[strlen(host_name)];
+			memset(temp, 0, strlen(host_name));
 			memcpy(temp, host_name, strlen(host_name) - 1);
 			remoteHost = gethostbyname(temp);
 		}
@@ -785,6 +831,7 @@ public:
 		//buf_temp = new char[MAXLEN]();
 		memset(buf, 0, strlen(buf));
 
+		temp = 0;
 		while ((temp = recv(sockfd, buf, MAXLEN, 0)) > 0)
 		{
 			//버퍼 합치기
@@ -803,12 +850,19 @@ public:
 			delete[] buf_temp;
 			//buf_temp = NULL;
 		}
-		if (temp == SOCKET_ERROR)
-		{
-			WSAGetLastError();
-			printf("Recv Error!\n");
-		}
 
+		/*if (temp == SOCKET_ERROR)
+		{
+		WSAGetLastError();
+		printf("Recv Error!\n");
+		}*/
+		/*uni = new wchar_t[total];
+		Multi2Uni(rbuf, total, uni);
+
+		for (int i = 0; i < 5000; i++)
+		{
+		printf("%c", uni[i]);
+		}*/
 
 		//printf("%s", rbuf);
 
@@ -836,7 +890,14 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 	WNDCLASS WndClass;
 	g_hInst = hInstance;
 
-	printf("Hello world\n");
+	//한국어
+	setlocale(LC_ALL, "korean");
+
+	//GDI+ 초기화
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
 	WndClass.cbClsExtra = 0;
 	WndClass.cbWndExtra = 0;
 	WndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
@@ -860,6 +921,9 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
+
+	//GDI+ 종료
+	GdiplusShutdown(gdiplusToken);
 
 	return (int)Message.wParam;
 }
@@ -889,7 +953,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	PAINTSTRUCT ps;
 	char str[128];
 	char index[128];
-	char new_str[500] = "";
+	char new_str[1000] = "";
 	int parse_int = 0;
 	RECT rt;
 	GetClientRect(hWnd, &rt);
@@ -900,6 +964,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	Socket m_socket;
 	DNS m_dns;
 	Parser m_parser;
+	//image m_image;
+
 	//BITMAP
 	BITMAPINFO* bmi;
 	BITMAPFILEHEADER* bmfh;
@@ -924,12 +990,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	//마우스 좌표
 	int mX;
 	int mY;
-	
+
+	//그래픽 객체 생성
+	//m_image.Initialize();
+
 	switch (iMessage)
 	{
 	case WM_CREATE:
 		hEdit = CreateWindow(TEXT("edit"), NULL, WS_CHILD | WS_VISIBLE | WS_BORDER |
-			ES_AUTOHSCROLL, 10, 10, rt.right- 30 - 100, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
+			ES_AUTOHSCROLL, 10, 10, rt.right - 30 - 100, 25, hWnd, (HMENU)ID_EDIT1, g_hInst, NULL);
 		CreateWindow(TEXT("button"), TEXT("입력"), WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
 			rt.right - 10 - 100, 10, 100, 25, hWnd, (HMENU)ID_BUTTON1, g_hInst, NULL);
 		oldEditProc = (WNDPROC)SetWindowLongPtr(hEdit, GWLP_WNDPROC, (LONG_PTR)subEditProc);
@@ -937,13 +1006,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 		return 0;
 
 	case WM_COMMAND:
-		
+
 		switch (LOWORD(wParam)) {
 		case ID_BUTTON1:
 
 			if (m_link)
 			{
-				for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
+				for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 				{
 					DestroyWindow(m_link[i]);
 				}
@@ -963,85 +1032,147 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				uni = NULL;
 			}
 			GetWindowTextA(hEdit, str, 128);
-			printf("%s\n", str);
+
+			//printf("Input : %s\n", str);
 			parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
-			printf("%s\n", m_parser.address);
-			printf("%s\n", m_parser.index);
+			//printf("Address : %s\n", m_parser.address);
+			//printf("Index : %s\n", m_parser.index);
 
 
 			//Parsing 되었을 경우
 			if (parse_int)
 			{
-				m_dns.Initialize();
-				//주소 오류 처리
-				//if (m_dns.get_dns("sang12456.cafe24.com") != 1)
-				//if (m_dns.get_dns("www.google.com") != 1)
-				//if (m_dns.get_dns("www.naver.com") != 1)
-				//if (m_dns.get_dns("img.naver.net") != 1)
-				//if (m_dns.get_dns("www.ibk.co.kr") != 1)
-				//if (m_dns.get_dns("www.naver.com") != 1)
-				if (m_dns.get_dns(m_parser.address) != 1)
+				int i = 0;
+				do
 				{
-					//연결 및 파싱
-					m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
-					//m_socket.Connect(m_dns.get_ip(), 443);
-					//m_socket.Connect(m_dns.get_ip(), 8888);
-					memset(new_str, 0, 500);
-					strcat(new_str, "GET ");
-
-					//요청 메세지 상황에 따라 파싱
-					if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
+					m_dns.Initialize();
+					if (i > 0)
 					{
-
-						char* temp = new char[strlen(m_parser.index) - 1];
-						memset(temp, 0, strlen(m_parser.index));
-						memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
-						strcat(new_str, temp);
+						memset(m_parser.address, 0, 1024);
+						memset(m_parser.index, 0, 1024);
+						//rbuf에서 m_parser.index, m_parser.address값 
+						printf("Previous Buffer : %s\n", rbuf);
+						m_parser.HTTP_parser(rbuf, strlen(rbuf), 0);
+						memset(rbuf, 0, MAXLEN);
 					}
-					else
-						strcat(new_str, m_parser.index);
+					
+					printf("Address : %s\n", m_parser.address);
+					printf("Index : %s\n", m_parser.index);
+					
 
-					strcat(new_str, " HTTP/1.1\r\n\r\n");
-					//strcat(new_str, "Content-Type : image/gif;\r\n\r\n");
-					printf("%s\n", new_str);
-					m_socket.Insert(new_str);
-					//Tag 내용으로 Parsing
-					yPos_total = m_socket.GetPacketNum();
-					str_buffer = new char[yPos_total]();
-					Parse_Tag(rbuf, yPos_total, str_buffer);
-					uni = new wchar_t[yPos_total];
-					Multi2Uni(str_buffer, yPos_total, uni);
-					wprintf(L"%ls", uni);
-					//대칭 Tag 찾는 것
-					//Parse_Tag3(rbuf, total, "body", str_buffer);
-					//memset(rbuf, 0, total);
-					//printf("%s", str_buffer);
+					if (m_dns.get_dns(m_parser.address) != 1)
+					{
+						//연결 및 파싱
+						m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
+						memset(new_str, 0, 1000);
+						strcat(new_str, "GET ");
 
-					memset(str_buffer, 0, yPos_total);
-					//Img 같은 Tag 찾는 것
-					Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
-					//printf("%s", str_buffer);
-					//memset(rbuf, 0, m_socket.GetPacketNum() + strlen(buf));
-					//Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
-					//printf("====");
-					//printf("%s", rbuf);
-					//1개만 rbuf로 가져오기
+						//요청 메세지 상황에 따라 파싱
+						if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
+						{
 
-					//load bmp
-					//hBitmap = Load_bmp(char2unsigned(buf), 910, 302);		
+							char* temp = new char[strlen(m_parser.index) - 1];
+							memset(temp, 0, strlen(m_parser.index));
+							memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
+							strcat(new_str, temp);
+						}
+						else
+							strcat(new_str, m_parser.index);
 
-					//Multi2Uni(rbuf, m_socket.GetPacketNum());
+						if(i==0)
+							strcat(new_str, " HTTP/1.1\r\n\r\n");
+						else
+						{
+							strcat(new_str, " HTTP/1.1\r\n");
+							//Header Info
+							strcat(new_str, "Host: ");
+							strcat(new_str, m_parser.address);
+							strcat(new_str, "\r\n");
+							strcat(new_str, "Connection: keep-alive\r\n");
+							strcat(new_str, "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n");
+							strcat(new_str, "Accept-Language: ko-KR,ko;q=0.8,en-US;q=0.6,en;q=0.4\r\n\r\n");
+						}
 
-					//m_socket.Close();
-				}
-				cout << "End Request\n" << endl;
-				InvalidateRect(hWnd, NULL, true);
+						printf("Request : %s\n", new_str);
 
-				/*RedrawWindow(hWnd, &rt, NULL, RDW_ERASENOW);
-				InvalidateRect(hWnd, NULL, false);
-				UpdateWindow(hWnd);*/
+						m_socket.Insert(new_str);
 
+						yPos_total = m_socket.GetPacketNum();
+
+						//Header, Body Parsing
+						int HeaderPos = FindHeaderPos(rbuf, yPos_total, 4);
+						//printf("%d\n", HeaderPos);
+
+						//있을 경우 삭제
+						if (header_buffer != NULL)
+							delete[] header_buffer;
+						if (body_buffer != NULL)
+							delete[] body_buffer;
+
+						//헤더 가져오기
+						header_buffer = new char[HeaderPos]();
+						memcpy(header_buffer, rbuf, HeaderPos);
+						//printf("Header : %s\n",header_buffer);
+
+						//바디 가져오기
+						body_buffer = new char[yPos_total - HeaderPos]();
+						yPos_body = yPos_total - HeaderPos;
+						memcpy(body_buffer, rbuf + HeaderPos, yPos_body);
+						//printf("Body : %s\n", body_buffer);
+						//cout << "Body : " << body_buffer << endl;
+
+
+						//Parse_Tag(rbuf, yPos_total, str_buffer);
+						//uni = new wchar_t[yPos_total];
+						//Multi2Uni(str_buffer, yPos_total, uni);
+
+						//wprintf(L"%ls", uni);
+						//대칭 Tag 찾는 것
+						//Parse_Tag3(rbuf, total, "body", str_buffer);
+						//memset(rbuf, 0, total);
+						//printf("%s", str_buffer);
+
+						//Img 같은 Tag 찾는 것
+						if (i == 0)
+						{
+							str_buffer = new char[yPos_total]();
+							img_buffer = new char[yPos_total]();
+
+							memset(str_buffer, 0, yPos_total);
+							memset(img_buffer, 0, yPos_total);
+
+							Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
+							printf("str_buffer : %s\n", str_buffer);
+							Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer);
+							printf("img_buffer : %s\n", img_buffer);
+
+						}
+
+						//printf("%s", str_buffer);
+
+						//memset(rbuf, 0, m_socket.GetPacketNum() + strlen(buf));
+						//Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
+						//printf("====");
+
+						i++;
+						memset(rbuf, 0, MAXLEN);
+
+						InvalidateRect(hWnd, NULL, true);
+						UpdateWindow(hWnd);
+					}
+					else//연결 실패했을 경우 종료
+						break;
+				} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), i, rbuf) == 1);
 			}
+			cout << "End Request\n" << endl;
+			//Invalidate
+
+
+			/*RedrawWindow(hWnd, &rt, NULL, RDW_ERASENOW);
+			InvalidateRect(hWnd, NULL, false);
+			UpdateWindow(hWnd);*/
+
+			//}str_buffer
 
 			//Scroll 초기화
 			GetScrollInfo(hWnd, SB_VERT, &si);
@@ -1055,6 +1186,11 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			if (yPos_total)
 			{
 				//다수
+				if (m_link != NULL)
+					delete[] m_link;
+				if (m_rect != NULL)
+					delete[] m_rect;
+
 				m_rect = new RECT[yPos_total]();
 				m_link = new HWND[yPos_total]();
 
@@ -1063,21 +1199,25 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 				int temp_x = 0;
 				int temp_y = 0;
-				memset(rbuf, 0, yPos_total);
+				memset(rbuf, 0, MAXLEN);
 
-
-
-				for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
+				for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 				{
 					CalculateRect(m_rect + i, 0, 50 + (16 * i), client_rect.right, 16);
 					//CalculateRect(m_rect + i, 0, 0+(15*i), strlen(rbuf)*8, 15);
-					m_link[i] = CreateSysLink(hWnd, m_rect[i], i, rbuf, strlen(str_buffer));
-					memset(rbuf, 0, yPos_total);
+					m_link[i] = CreateSysLink(hWnd, m_rect[i], i, rbuf);
+					memset(rbuf, 0, MAXLEN);
 				}
+
+				InvalidateRect(hWnd, &rt, 1);
+				UpdateWindow(hWnd);
+
+				//InvalidateRect(hWnd, &rt, 0);
+				//UpdateWindow(hWnd);
 
 				//하나
 				/*memset(rbuf, 0, yPos_total);
-				tag_temp = Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
+				tag_temp = Get_Parse_Tag2(str_buffer,  yPos_total, 0, rbuf);
 				CalculateRect(m_rect, 0, 0, client_rect.right, 15);
 				CreateSysLink(hWnd, m_rect[0], 0, rbuf, strlen(str_buffer));
 				*/
@@ -1111,12 +1251,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			//Hyperlink 생성
 			memset(rbuf, 0, yPos_total);
 
-			for (int i = 0; Get_Parse_Tag2(str_buffer, strlen(str_buffer), i, rbuf) == 1; i++)
+			for (int i = 0; Get_Parse_Tag2(str_buffer, yPos_total, i, rbuf) == 1; i++)
 			{
 				//ID 검사
 				if (((LPNMHDR)IParam)->idFrom == (UINT)i)
 				{
-					ShellExecute(NULL, L"open", L"Iexplore.exe", item.szUrl, NULL, SW_SHOW);
+					//ShellExecute(NULL, L"open", L"Iexplore.exe", item.szUrl, NULL, SW_SHOW);
 					SetWindowText(hEdit, item.szUrl);
 				}
 				DestroyWindow(m_link[i]);
@@ -1153,22 +1293,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 	case WM_PAINT:
 
-		hdc = BeginPaint(hWnd, &ps);
-		//DrawTextA(hdc, rbuf, -1, &rt, DT_LEFT);
 
 		//DrawText(hdc, uni + (text_yPos), -1, &rt, DT_LEFT);
-		//printf("%d\n", text_yPos);
-		//TextOutA(hdc, 100, 100, rbuf, strlen(buf));
-		//TextOutA(hdc, 100, 100, str_buffer, strlen(str_buffer));
 
-		//HDC hdcMem;
+		//m_image.Printimage();
 
-		//hdcMem = CreateCompatibleDC(hdc);
-		//hBitmap = CreateBitmapFromPixels(hdcMem, 910, 302, 8, char2unsigned(rbuf + 189));
-		//BitBlt(hdc, 10, 10, 910, 302, hdcMem, 0, 0, SRCCOPY);
-		//StretchDIBits(hdc, 10, 10, 910, 302, 10, 10, 910, 302, hBitmap, bmi, DIB_RGB_COLORS, SRCCOPY);
-		//DeleteDC(hdcMem);
+		hdc = BeginPaint(hWnd, &ps);
 
+		//받은 패킷이 존재하면
+		if (yPos_total)
+		{
+			//버퍼에 있는 이미지 그리기
+			//GET하는 것을 함수로바꿔서 여러번 요청 출력
+			DrawStream(hdc, body_buffer, yPos_body, 0, 50);
+		}
 
 		EndPaint(hWnd, &ps);
 		return 0;
@@ -1211,37 +1349,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			// User clicked the HOME keyboard key.
 		case SB_TOP:
 			si.nPos = si.nMin;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the END keyboard key.
 		case SB_BOTTOM:
 			si.nPos = si.nMax;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
 			break;
 
 			// User clicked the top arrow.
 		case SB_LINEUP:
 			si.nPos -= 10;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the bottom arrow.
 		case SB_LINEDOWN:
 			si.nPos += 10;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
 			break;
 
 			// User clicked the scroll bar shaft above the scroll box.
 		case SB_PAGEUP:
 			si.nPos -= si.nPage;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the scroll bar shaft below the scroll box.
 		case SB_PAGEDOWN:
 			si.nPos += si.nPage;
-			text_yPos = Set_yPos(uni, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
 			break;
 
 			// User dragged the scroll box.
@@ -1249,10 +1387,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			//줄어들 때
 			if (si.nTrackPos < si.nPos)
 				for (int i = si.nTrackPos; i < si.nPos; i += si.nPage)
-					text_yPos = Set_yPos(uni, yPos_total, text_yPos, BACKWARD);
+					text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
 			else
 				for (int i = si.nPos; i < si.nTrackPos; i += si.nPage)
-					text_yPos = Set_yPos(uni, yPos_total, text_yPos, FORWARD);
+					text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
 			si.nPos = si.nTrackPos;
 
 			break;
