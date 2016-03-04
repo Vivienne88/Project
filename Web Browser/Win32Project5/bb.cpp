@@ -38,6 +38,7 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 
 //스트링 길이
 #define MAXLEN 65537
+#define ADDRESSLEN 2048
 
 //함수 원형
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
@@ -120,7 +121,8 @@ int DrawStream(HDC hdc, char* buf, int buffer_size, int x, int y)
 	}
 	Gdiplus::Image image(m_pIStream_in);
 	Graphics* g = new Graphics(hdc);
-	g->DrawImage(&image, x, y);
+	if(g!=NULL)
+		g->DrawImage(&image, x, y);
 	return 1;
 }
 
@@ -204,8 +206,8 @@ int Multi2Uni(char* buffer, int buffer_size, wchar_t* output)
 //SysLink 생성해주는 함수
 HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer)
 {
-	char temp_str[1000];
-	memset(temp_str, 0, 1000);
+	char temp_str[3000];
+	memset(temp_str, 0, 3000);
 
 	strcat(temp_str, "<A HREF=\"");
 	strcat(temp_str, buffer);
@@ -216,7 +218,7 @@ HWND CreateSysLink(HWND hDlg, RECT rect, int ID, char* buffer)
 	//string new_str;
 	//new_str = char2string(temp_str);
 
-	wchar_t* w_str = new wchar_t[1000]();
+	wchar_t* w_str = new wchar_t[3000]();
 	Multi2Uni(temp_str, strlen(temp_str), w_str);
 	//wcscat(w_str,);
 
@@ -476,14 +478,14 @@ int Parse_Tag(char* buffer, int buffer_size, char* output)
 class Parser
 {
 public:
-	char address[1024];
-	char index[1024];
+	char address[ADDRESSLEN];
+	char index[ADDRESSLEN];
 	char port[10];
 
 	//배열 초기화 생성자
 	Parser()
 	{
-		for (int i = 0; i < 1024; i++)
+		for (int i = 0; i < ADDRESSLEN; i++)
 		{
 			address[i] = '\0';
 			index[i] = '\0';
@@ -552,8 +554,8 @@ public:
 	//option 1 일 경우 None
 	int HTTP_parser(char* buffer, int buf_size, bool option)
 	{
-		memset(address, 0, 1024);
-		memset(index, 0, 1024);
+		memset(address, 0, ADDRESSLEN);
+		memset(index, 0, ADDRESSLEN);
 		memset(port, 0, 10);
 
 		//HTTP가 있을 경우
@@ -684,6 +686,8 @@ public:
 
 	int get_dns(char* host_name)
 	{
+		int k = 0;
+
 		//호스트 파싱
 		if (host_name[strlen(host_name) - 1] == '\n')
 		{
@@ -694,8 +698,9 @@ public:
 		}
 		else
 			remoteHost = gethostbyname(host_name);
-
-		int i = 0;
+	
+		//여기 수정중
+		//getaddrinfo()
 		if (remoteHost == NULL)
 		{
 			dwError = WSAGetLastError();
@@ -724,7 +729,7 @@ public:
 			printf("\tOfficial name: %s\n", remoteHost->h_name);
 			for (pAlias = remoteHost->h_aliases; *pAlias != 0; pAlias++)
 			{
-				printf("\tAlternate name #%d: %s\n", ++i, *pAlias);
+				printf("\tAlternate name #%d: %s\n", ++k, *pAlias);
 			}
 			printf("\tAddress type: ");
 			switch (remoteHost->h_addrtype)
@@ -738,13 +743,13 @@ public:
 				break;
 			}
 			printf("\tAddress length: %d\n", remoteHost->h_length);
-			i = 0;
+			k = 0;
 			if (remoteHost->h_addrtype == AF_INET)
 			{
-				while (remoteHost->h_addr_list[i] != 0)
+				while (remoteHost->h_addr_list[k] != 0)
 				{
-					addr.s_addr = *(u_long *)remoteHost->h_addr_list[i++];
-					printf("\tIP Address #%d: %s\n", i, inet_ntoa(addr));
+					addr.s_addr = *(u_long *)remoteHost->h_addr_list[k++];
+					printf("\tIP Address #%d: %s\n", k, inet_ntoa(addr));
 				}
 			}
 			else if (remoteHost->h_addrtype == AF_NETBIOS)
@@ -792,7 +797,7 @@ public:
 			return 1;
 		}
 
-		int timeout = 1500;
+		int timeout = 500;
 		setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(int));
 
 		//연결
@@ -893,11 +898,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 	//한국어
 	setlocale(LC_ALL, "korean");
 
-	//GDI+ 초기화
-	GdiplusStartupInput gdiplusStartupInput;
-	ULONG_PTR gdiplusToken;
-	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
 	WndClass.cbClsExtra = 0;
 	WndClass.cbWndExtra = 0;
 	WndClass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
@@ -922,8 +922,6 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 		DispatchMessage(&Message);
 	}
 
-	//GDI+ 종료
-	GdiplusShutdown(gdiplusToken);
 
 	return (int)Message.wParam;
 }
@@ -991,8 +989,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	int mX;
 	int mY;
 
-	//그래픽 객체 생성
+	//그래픽 객체
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+
 	//m_image.Initialize();
+	int j = 0;
 
 	switch (iMessage)
 	{
@@ -1034,139 +1036,143 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			GetWindowTextA(hEdit, str, 128);
 
 			//printf("Input : %s\n", str);
-			parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
 			//printf("Address : %s\n", m_parser.address);
 			//printf("Index : %s\n", m_parser.index);
 
+			//GDI+ 초기화
+			GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
 
 			//Parsing 되었을 경우
-			if (parse_int)
+			do
 			{
-				int i = 0;
-				do
+				m_dns.Initialize();
+				memset(m_parser.address, 0, ADDRESSLEN);
+				memset(m_parser.index, 0, ADDRESSLEN);
+
+				if (j==0)
+					parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
+				else
 				{
-					m_dns.Initialize();
-					if (i > 0)
-					{
-						memset(m_parser.address, 0, 1024);
-						memset(m_parser.index, 0, 1024);
-						//rbuf에서 m_parser.index, m_parser.address값 
-						printf("Previous Buffer : %s\n", rbuf);
-						m_parser.HTTP_parser(rbuf, strlen(rbuf), 0);
-						memset(rbuf, 0, MAXLEN);
-					}
+					//rbuf에서 m_parser.index, m_parser.address값 
+					printf("Before Parsing : %s\n", rbuf);
+					m_parser.HTTP_parser(rbuf, strlen(rbuf), 0);
+					memset(rbuf, 0, MAXLEN);
+				}
 					
-					printf("Address : %s\n", m_parser.address);
-					printf("Index : %s\n", m_parser.index);
+				printf("Address : %s\n", m_parser.address);
+				printf("Index : %s\n", m_parser.index);
 					
 
-					if (m_dns.get_dns(m_parser.address) != 1)
+				if (m_dns.get_dns(m_parser.address) != 1)
+				{
+					//연결 및 파싱
+					m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
+					memset(new_str, 0, 1000);
+					strcat(new_str, "GET ");
+
+					//요청 메세지 상황에 따라 파싱
+					if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
 					{
-						//연결 및 파싱
-						m_socket.Connect(m_dns.get_ip(), atoi(m_parser.port));
-						memset(new_str, 0, 1000);
-						strcat(new_str, "GET ");
 
-						//요청 메세지 상황에 따라 파싱
-						if (m_parser.index[strlen(m_parser.index) - 1] == '\n')
-						{
-
-							char* temp = new char[strlen(m_parser.index) - 1];
-							memset(temp, 0, strlen(m_parser.index));
-							memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
-							strcat(new_str, temp);
-						}
-						else
-							strcat(new_str, m_parser.index);
-
-						if(i==0)
-							strcat(new_str, " HTTP/1.1\r\n\r\n");
-						else
-						{
-							strcat(new_str, " HTTP/1.1\r\n");
-							//Header Info
-							strcat(new_str, "Host: ");
-							strcat(new_str, m_parser.address);
-							strcat(new_str, "\r\n");
-							strcat(new_str, "Connection: keep-alive\r\n");
-							strcat(new_str, "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n");
-							strcat(new_str, "Accept-Language: ko-KR,ko;q=0.8,en-US;q=0.6,en;q=0.4\r\n\r\n");
-						}
-
-						printf("Request : %s\n", new_str);
-
-						m_socket.Insert(new_str);
-
-						yPos_total = m_socket.GetPacketNum();
-
-						//Header, Body Parsing
-						int HeaderPos = FindHeaderPos(rbuf, yPos_total, 4);
-						//printf("%d\n", HeaderPos);
-
-						//있을 경우 삭제
-						if (header_buffer != NULL)
-							delete[] header_buffer;
-						if (body_buffer != NULL)
-							delete[] body_buffer;
-
-						//헤더 가져오기
-						header_buffer = new char[HeaderPos]();
-						memcpy(header_buffer, rbuf, HeaderPos);
-						//printf("Header : %s\n",header_buffer);
-
-						//바디 가져오기
-						body_buffer = new char[yPos_total - HeaderPos]();
-						yPos_body = yPos_total - HeaderPos;
-						memcpy(body_buffer, rbuf + HeaderPos, yPos_body);
-						//printf("Body : %s\n", body_buffer);
-						//cout << "Body : " << body_buffer << endl;
-
-
-						//Parse_Tag(rbuf, yPos_total, str_buffer);
-						//uni = new wchar_t[yPos_total];
-						//Multi2Uni(str_buffer, yPos_total, uni);
-
-						//wprintf(L"%ls", uni);
-						//대칭 Tag 찾는 것
-						//Parse_Tag3(rbuf, total, "body", str_buffer);
-						//memset(rbuf, 0, total);
-						//printf("%s", str_buffer);
-
-						//Img 같은 Tag 찾는 것
-						if (i == 0)
-						{
-							str_buffer = new char[yPos_total]();
-							img_buffer = new char[yPos_total]();
-
-							memset(str_buffer, 0, yPos_total);
-							memset(img_buffer, 0, yPos_total);
-
-							Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
-							printf("str_buffer : %s\n", str_buffer);
-							Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer);
-							printf("img_buffer : %s\n", img_buffer);
-
-						}
-
-						//printf("%s", str_buffer);
-
-						//memset(rbuf, 0, m_socket.GetPacketNum() + strlen(buf));
-						//Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
-						//printf("====");
-
-						i++;
-						memset(rbuf, 0, MAXLEN);
-
-						InvalidateRect(hWnd, NULL, true);
-						UpdateWindow(hWnd);
+						char* temp = new char[strlen(m_parser.index)];
+						memset(temp, 0, strlen(m_parser.index));
+						memcpy(temp, m_parser.index, strlen(m_parser.index) - 1);
+						strcat(new_str, temp);
 					}
-					else//연결 실패했을 경우 종료
-						break;
-				} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), i, rbuf) == 1);
-			}
+					else
+						strcat(new_str, m_parser.index);
+
+					if(j==0)
+						strcat(new_str, " HTTP/1.1\r\n\r\n");
+					else
+					{
+						strcat(new_str, " HTTP/1.1\r\n");
+						//Header Info
+						strcat(new_str, "Host: ");
+						strcat(new_str, m_parser.address);
+						strcat(new_str, "\r\n");
+						strcat(new_str, "Connection: keep-alive\r\n");
+						strcat(new_str, "Accept:text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8\r\n");
+						strcat(new_str, "Accept-Language: ko-KR,ko;q=0.8,en-US;q=0.6,en;q=0.4\r\n\r\n");
+					}
+
+					printf("Request : %s\n", new_str);
+
+					m_socket.Insert(new_str);
+
+					yPos_total = m_socket.GetPacketNum();
+
+					//Header, Body Parsing
+					int HeaderPos = FindHeaderPos(rbuf, yPos_total, 4);
+					//printf("%d\n", HeaderPos);
+
+					//있을 경우 삭제
+					if (header_buffer != NULL)
+						delete[] header_buffer;
+					if (body_buffer != NULL)
+						delete[] body_buffer;
+
+					//헤더 가져오기
+					header_buffer = new char[HeaderPos]();
+					memcpy(header_buffer, rbuf, HeaderPos);
+					//printf("Header : %s\n",header_buffer);
+
+					//바디 가져오기
+					body_buffer = new char[yPos_total - HeaderPos]();
+					yPos_body = yPos_total - HeaderPos;
+					memcpy(body_buffer, rbuf + HeaderPos, yPos_body);
+					//printf("Body : %s\n", body_buffer);
+					//cout << "Body : " << body_buffer << endl;
+
+
+					//Parse_Tag(rbuf, yPos_total, str_buffer);
+					//uni = new wchar_t[yPos_total];
+					//Multi2Uni(str_buffer, yPos_total, uni);
+
+					//wprintf(L"%ls", uni);
+					//대칭 Tag 찾는 것
+					//Parse_Tag3(rbuf, total, "body", str_buffer);
+					//memset(rbuf, 0, total);
+					//printf("%s", str_buffer);
+
+					//Img 같은 Tag 찾는 것
+					if (j == 0)
+					{
+						str_buffer = new char[yPos_total]();
+						img_buffer = new char[yPos_total]();
+
+						memset(str_buffer, 0, yPos_total);
+						memset(img_buffer, 0, yPos_total);
+
+						Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
+						//printf("str_buffer : %s\n", str_buffer);
+						Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer);
+						//printf("img_buffer : %s\n", img_buffer);
+
+					}
+
+					//printf("%s", str_buffer);
+
+					//memset(rbuf, 0, m_socket.GetPacketNum() + strlen(buf));
+					//Get_Parse_Tag2(str_buffer, strlen(str_buffer), 0, rbuf);
+					//printf("====");
+
+					j++;
+					memset(rbuf, 0, MAXLEN);
+
+					InvalidateRect(hWnd, NULL, true);
+					UpdateWindow(hWnd);
+					//m_socket.Close();
+				}
+				else//연결 실패했을 경우 종료
+					break;
+			} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf) == 1);
+			
 			cout << "End Request\n" << endl;
 			//Invalidate
 
+			//GDI+ 종료
+			GdiplusShutdown(gdiplusToken);
 
 			/*RedrawWindow(hWnd, &rt, NULL, RDW_ERASENOW);
 			InvalidateRect(hWnd, NULL, false);
@@ -1179,7 +1185,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
 			SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
 			SetScrollPos(hWnd, SB_VERT, 0, 1);
-			InvalidateRect(hWnd, &rt, 1);
+			InvalidateRect(hWnd, &rt, true);
+			//InvalidateRect(&rt);
 			UpdateWindow(hWnd);
 
 			//SysLink 생성
