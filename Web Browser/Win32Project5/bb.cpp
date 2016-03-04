@@ -53,7 +53,6 @@ char* header_buffer = NULL;
 char* body_buffer = NULL;
 char* img_buffer = NULL;
 wchar_t* uni = NULL;
-BITMAPINFO bmi;
 SCROLLINFO si;
 
 //총 받은 패킷 수
@@ -934,23 +933,13 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	int parse_int = 0;
 	RECT rt;
 	GetClientRect(hWnd, &rt);
-	HBITMAP bmp;
 	HBITMAP hBitmap = 0;
-	BITMAP cBitmap;
 	//클래스 선언
 	Socket m_socket;
 	DNS m_dns;
 	Parser m_parser;
-	//image m_image;
-
-	//BITMAP
-	BITMAPINFO* bmi;
-	BITMAPFILEHEADER* bmfh;
-	BITMAPINFOHEADER* bmih;
-	void* bits;
-	int x = 0, y;               // horizontal and vertical coordinates
-
-	HWND hwndTest;
+		
+	int x = 0;               // horizontal and vertical coordinates
 
 	static int xClient;     // width of client area 
 	static int yClient;     // height of client area 
@@ -962,12 +951,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	static int yPos;
 	static int xPos;
 	int abcLength = 0;  // length of an abc[] item
-	HRESULT hr;
-
-	//마우스 좌표
-	int mX;
-	int mY;
-
+	
 	//그래픽 객체
 	GdiplusStartupInput gdiplusStartupInput;
 	ULONG_PTR gdiplusToken;
