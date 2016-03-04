@@ -22,7 +22,7 @@ using namespace Gdiplus::DllExports;
 #pragma execution_character_set("utf-8")
 
 //콘솔
-//#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
+#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
 
 //소켓
 #pragma comment(lib, "Ws2_32.lib")
@@ -52,6 +52,7 @@ char* str_buffer = NULL;
 char* header_buffer = NULL;
 char* body_buffer = NULL;
 char* img_buffer = NULL;
+char* content_buffer = NULL;
 wchar_t* uni = NULL;
 SCROLLINFO si;
 
@@ -59,6 +60,7 @@ SCROLLINFO si;
 int yPos_total = 0;
 int yPos_body = 0;
 int text_yPos = 0;
+bool Error_flag = 0;
 
 //텍스트 내의 공백 수
 int back_total = 0;
@@ -358,6 +360,7 @@ int Get_Parse_Tag2(char* input, int buffer_size, int index, char* output)
 
 	for (int i = 0; i < buffer_size; i++)
 	{
+		// '[' 와 '+' 에 대한 예외처리
 		if ((input[i] == '[' || input[i] == '+') && next_flag == 0)
 		{
 			next_flag = 1;
@@ -383,8 +386,10 @@ int Get_Parse_Tag2(char* input, int buffer_size, int index, char* output)
 	return 0;
 }
 
-//img src종류의 Tag에 " " 가져오기
-int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
+enum Parse_option { HTTP_only, ALL };
+
+//img src종류의 Tag에 " 내용 " 가져오기
+int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output, enum Parse_option option)
 {
 	bool tag_flag = 0;
 	bool start_flag = 0;
@@ -394,6 +399,12 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 	int count = 0;
 	int input_index = 0;
 	int output_index = 0;
+	int time = 0;
+
+	//대,소문자 구분
+	//소문자에 diff만큼 빼면 대문자 
+	int diff = 'a' - 'A';
+	
 
 	for (int i = 0; i < buffer_size; i++)
 	{
@@ -401,8 +412,15 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 		//start_flag 열리면 이제부터 저장 시작
 		if (start_flag)
 		{
-			if (buffer[i + 1] != '\r')
+			//amp;와 동일할 경우
+			if (time==0 && (!strncmp(buffer + i + 1, "amp;", 4)))
+				time = 4;
+			else if (buffer[i + 1] != '\r' && time == 0)
 				output[output_index++] = buffer[i + 1];
+
+			//amp; 파싱 위해서 일정 시간 동안 복사 방지
+			if (time > 0)
+				time--;
 
 			//저장 끝나는 시점
 			if (buffer[i + 2] == '"')
@@ -414,20 +432,42 @@ int Parse_Tag2(char* buffer, int buffer_size, char* input, char* output)
 		else
 		{
 			//Pattern과 Text가 일치할 경우
-			if (buffer[i] == input[input_index++])
+			char temp = input[input_index] - diff;
+			if (buffer[i] == input[input_index])
+			{
+				input_index++;
 				count++;
+			}
+			else if (temp == buffer[i])
+			{
+				count++;
+				input_index++;
+			}
 			else
 			{
 				input_index = 0;
 				count = 0;
 			}
 
-			//모든 조건을 만족할 경우 start_flag
-			if (count == strlen(input) && buffer[i + 1] == '"' && strncmp(buffer + i + 2, "http://", 7) == 0)
+
+			//HTTP만 가져오기
+			if (option == HTTP_only)
 			{
-				count = 0;
-				start_flag = 1;
+				if (count == strlen(input) && buffer[i + 1] == '"' && strncmp(buffer + i + 2, "http://", 7) == 0)
+				{
+					count = 0;
+					start_flag = 1;
+				}
 			}
+			else
+			{
+				if (count == strlen(input) && buffer[i + 1] == '"')
+				{
+					count = 0;
+					start_flag = 1;
+				}
+			}
+			
 		}
 	}
 	return 0;
@@ -560,12 +600,22 @@ public:
 
 		//HTTP가 있을 경우
 		bool HTTP_flag = 0;
+		bool HTTPS_flag = 0;
 		bool WWW_flag = 0;
 		bool Pos_flag = 0;
 		bool Colon_flag = 0;
 		int dot_count = 0;
 		int Pos = 0;
 		int cPos = 0;
+
+		if (strncmp(buffer, "HTTPS://", 8) == 0)
+			HTTPS_flag = 1;
+		else if (strncmp(buffer, "Https://", 8) == 0)
+			HTTPS_flag = 1;
+		else if (strncmp(buffer, "https://", 8) == 0)
+			HTTPS_flag = 1;
+		else
+			HTTPS_flag = 0;
 
 		if (strncmp(buffer, "HTTP://", 7) == 0)
 			HTTP_flag = 1;
@@ -582,6 +632,15 @@ public:
 			else if (strncmp(buffer + 7, "WWW.", 4) == 0)
 				WWW_flag = 1;
 			else if (strncmp(buffer + 7, "Www.", 4) == 0)
+				WWW_flag = 1;
+			else
+				WWW_flag = 0;
+		else if(HTTPS_flag)
+			if (strncmp(buffer + 8, "www.", 4) == 0)
+				WWW_flag = 1;
+			else if (strncmp(buffer + 8, "WWW.", 4) == 0)
+				WWW_flag = 1;
+			else if (strncmp(buffer + 8, "Www.", 4) == 0)
 				WWW_flag = 1;
 			else
 				WWW_flag = 0;
@@ -654,7 +713,10 @@ public:
 				strcpy(index + 1, buffer + Pos);
 			}
 		}
-		if (dot_count)
+
+		if (HTTPS_flag)
+			return -1;
+		else if (dot_count)
 			return 1;
 		else
 			return 0;
@@ -934,11 +996,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	RECT rt;
 	GetClientRect(hWnd, &rt);
 	HBITMAP hBitmap = 0;
-	//클래스 선언
+	bool flag301 = 0;
+
+	//객체 선언
 	Socket m_socket;
 	DNS m_dns;
 	Parser m_parser;
 		
+
 	int x = 0;               // horizontal and vertical coordinates
 
 	static int xClient;     // width of client area 
@@ -957,6 +1022,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	ULONG_PTR gdiplusToken;
 
 	int j = 0;
+	memset(str, 0, ADDRESSLEN);
 
 	switch (iMessage)
 	{
@@ -988,7 +1054,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				m_rect = NULL;
 				delete[] m_link;
 				m_link = NULL;
-				InvalidateRect(hWnd, &rt, 0);
+				InvalidateRect(hWnd, &rt, 1);
+				UpdateWindow(hWnd);
 			}
 			//uni코드 존재할 경우 삭제
 			if (uni)
@@ -996,6 +1063,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				delete[] uni;
 				uni = NULL;
 			}
+			
+			memset(str, 0, ADDRESSLEN);
 			GetWindowTextA(hEdit, str, ADDRESSLEN);
 
 			//GDI+ 초기화
@@ -1003,6 +1072,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 			do
 			{
+				//초기화
+
 				m_dns.Initialize();
 				memset(m_parser.address, 0, ADDRESSLEN);
 				memset(m_parser.index, 0, ADDRESSLEN);
@@ -1013,7 +1084,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					parse_int = m_parser.HTTP_parser(str, strlen(str), 0);
 	
 					//파싱에 실패하였을 경우
-					if (!parse_int)
+					if (parse_int == -1)
+					{
+						MessageBox(hWnd, L"죄송합니다.\nHTTPS는 지원되지 않습니다.", L"알림창", MB_OK);
+						break;
+					}
+					if (parse_int == 0)
 					{
 						MessageBox(hWnd, L"주소를 입력해주세요.", L"알림창", MB_OK);
 						break;
@@ -1095,28 +1171,63 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					{
 						str_buffer = new char[yPos_total]();
 						img_buffer = new char[yPos_total]();
+						//content_buffer = new char[yPos_total]();
+						//uni = new WCHAR[yPos_total]();
+						uni = new WCHAR[MAXLEN]();
 
 						memset(str_buffer, 0, yPos_total);
 						memset(img_buffer, 0, yPos_total);
+						//memset(content_buffer, 0, yPos_total);
 
-						Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer);
-						Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer);
+						//Parse_Tag(rbuf, yPos_total, content_buffer);
+						//printf("%s", content_buffer);
+
+						//Multi2Uni(rbuf, MAXLEN, uni);
+						Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer, HTTP_only);
+						
+						//301 Redirection 오류 발생시
+						if (str_buffer[0] == '\0')
+						{
+							//Redirection 시도
+							Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer, ALL);
+
+							//Parsing 안될 경우 HTML 형식이 아닐 것이다. 재시도 중단
+							if (str_buffer[0] != '\0')
+							{
+								memcpy(str + strlen(str) - 1, str_buffer, strlen(str_buffer) - 1);
+								SetWindowTextA(hEdit, str);
+								memset(str_buffer, 0, yPos_total);
+								j = -1;
+							}
+						}
+						else
+						{
+							Parse_Tag2(rbuf, yPos_total, "img src=", img_buffer, HTTP_only);
+							m_socket.Close();
+						}
+
+						//str,img_buffer 모두 비었으면 오류가 났을 것이다.
+						if (img_buffer[0] == '\0' && str_buffer[0] == '\0')
+							Error_flag = 1;
+
+						//wprintf(L"%ls", uni);
 					}
 
+					
+					if(!Error_flag)
+						memset(rbuf, 0, MAXLEN);
+					
 					j++;
-					memset(rbuf, 0, MAXLEN);
-
 					InvalidateRect(hWnd, NULL, true);
 					UpdateWindow(hWnd);
-					m_socket.Close();
 				}
-				else//연결 실패했을 경우 종료
+				else //연결 실패했을 경우 종료
 				{
 					if(j==0)
 						MessageBox(hWnd, L"호스트를 찾을 수 없습니다.", L"알림창", MB_OK);
 					break;
 				}
-			} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf) == 1);
+			} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf) == 1 || j == 0);
 			
 			cout << "End Request\n" << endl;
 			
@@ -1128,8 +1239,12 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
 			SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
 			SetScrollPos(hWnd, SB_VERT, 0, 1);
-			InvalidateRect(hWnd, &rt, true);
-			UpdateWindow(hWnd);
+			
+			if (!Error_flag)
+			{
+				InvalidateRect(hWnd, &rt, false);
+				UpdateWindow(hWnd);
+			}
 
 			//SysLink 생성
 			if (yPos_total)
@@ -1163,8 +1278,14 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				}
 				
 				//화면 갱신
-				InvalidateRect(hWnd, &rt, 1);
-				UpdateWindow(hWnd);
+				if (!Error_flag)
+				{
+					InvalidateRect(hWnd, &rt, 1);
+					UpdateWindow(hWnd);
+				}
+				else
+					Error_flag = 0;
+
 			}
 
 			break;
@@ -1174,6 +1295,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			switch (HIWORD(wParam)) {
 			//변경이 되었을 경우 가져오기
 			case EN_CHANGE:
+				memset(str, 0, ADDRESSLEN);
 				GetWindowTextA(hEdit, str, ADDRESSLEN);
 				break;
 
@@ -1228,12 +1350,22 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 		
 		hdc = BeginPaint(hWnd, &ps);
 
-		//받은 패킷이 존재하면
-		if (yPos_total)
+		//오류 발생하였을 경우
+		if (Error_flag)
+		{
+			RECT m_rt;
+			m_rt.left = rt.left;
+			m_rt.bottom = rt.bottom;
+			m_rt.right = rt.right;
+			m_rt.top = rt.top + 50;
+			DrawTextA(hdc, rbuf, -1, &m_rt, DT_LEFT);
+		}
+		else if (yPos_total)
 		{
 			//버퍼에 있는 이미지 그리기
 			DrawStream(hdc, body_buffer, yPos_body, 0, 50);
 		}
+
 		EndPaint(hWnd, &ps);
 		return 0;
 
