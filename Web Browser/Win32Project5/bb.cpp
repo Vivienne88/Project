@@ -10,6 +10,9 @@
 #include <commctrl.h>
 #include <gdiplus.h>
 #include <gdiplusflat.h>
+#include <shlobj.h>
+#include <time.h>
+#include <random>
 
 using namespace std;
 using namespace Gdiplus;
@@ -17,6 +20,9 @@ using namespace Gdiplus::DllExports;
 
 //이미지
 #pragma comment (lib,"Gdiplus.lib")
+
+//폴더 생성
+#pragma comment (lib,"Shell32.lib")
 
 //UTF-8 변환
 #pragma execution_character_set("utf-8")
@@ -43,9 +49,15 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 //함수 원형
 LRESULT CALLBACK WndProc(HWND, UINT, WPARAM, LPARAM);
 int GetEncoderClsid(const WCHAR* format, CLSID* pClsid);
+int Multi2Uni(char* buffer, int buffer_size, wchar_t* output);
 
 //버퍼 생성
 char buf[MAXLEN];
+char MainFolder[ADDRESSLEN];
+char Folder[ADDRESSLEN];
+char filename[ADDRESSLEN];
+char format[ADDRESSLEN];
+
 char* rbuf = NULL;
 char* buf_temp = NULL;
 char* str_buffer = NULL;
@@ -54,7 +66,6 @@ char* body_buffer = NULL;
 char* img_buffer = NULL;
 char* content_buffer = NULL;
 wchar_t* uni = NULL;
-SCROLLINFO si;
 
 //총 받은 패킷 수
 int yPos_total = 0;
@@ -73,9 +84,71 @@ RECT* m_rect = NULL;
 HWND* m_link = NULL;
 WNDPROC oldEditProc;
 BYTE* pImageBuffer;
+SCROLLINFO si;
+
+//GDI+ 변수
+Graphics* g;
+
+//파일명, 형식 Parsing
+int GetFileName(char* buf, int buffer_size, char* filename, char* format)
+{
+	int bracketPos = 0;
+	int dotPos = 0;
+	int endPos = 0;
+	bool jsp_flag = 0;
+	//버퍼가 있을 경우만
+	if (buffer_size)
+	{
+		//가장 마지막자리에 있는 괄호와 점 위치 찾음
+		for (int i = 0; i < buffer_size; i++)
+		{
+			if (buf[i] == '/')
+				bracketPos = i + 1;
+			else if (buf[i] == '.')
+				dotPos = i + 1;
+		
+			if (dotPos)
+			{
+				//jsp일 경우
+				if (buf[i] == '?')
+				{
+					bracketPos = i + 1;
+					dotPos = buffer_size;
+					jsp_flag = 1;
+				}
+			}
+		}
+
+		//시드 설정
+		srand(time(NULL));
+
+		if(dotPos > bracketPos)
+			memcpy(filename, buf + bracketPos, dotPos - bracketPos - 1);
+		else
+			memcpy(filename, buf + bracketPos, bracketPos - dotPos - 1);
+
+		//랜덤 숫자 넣기
+		for (int i = 0; i < 4; i++)
+		{
+			char temp[10];
+			itoa(rand() % RAND_MAX, temp, 10);
+			strcat(filename, temp);
+		}
+		strcat(filename, ".");
+
+		//jsp일 경우
+		if (jsp_flag)
+			memcpy(format, "jpg", 3);
+		else
+			memcpy(format, buf + dotPos, buffer_size - dotPos - 1);
+		return 1;
+	}
+	else
+		return 0;
+}
 
 //이미지 저장 함수
-int SaveStream(Image image, WCHAR* type, WCHAR* filename)
+int SaveStream(Image* image, WCHAR* type, WCHAR* filename)
 {
 	//스트림 생성
 	IStream *Encodingbuffer;
@@ -86,10 +159,9 @@ int SaveStream(Image image, WCHAR* type, WCHAR* filename)
 	GetEncoderClsid(type, &m_pngClsid);
 
 	//이미지 저장
-	image.Save(Encodingbuffer, &m_pngClsid, NULL);
+	image->Save(Encodingbuffer, &m_pngClsid, NULL);
 	Bitmap *bitmap = new Bitmap(Encodingbuffer);
 	bitmap->Save(filename, &m_pngClsid, NULL);
-
 	return 1;
 }
 
@@ -130,11 +202,46 @@ int DrawStream(HDC hdc, char* buf, int buffer_size, int x, int y)
 
 	//스트림 내용으로 이미지 객체 생성 및 출력
 	Gdiplus::Image image(m_pIStream_in);
-	Graphics* g = new Graphics(hdc);
+	g = new Graphics(hdc);
 	if(g!=NULL)
 		g->DrawImage(&image, x, y);
 
-	return 1;
+	//포맷 형식
+	char my_format[ADDRESSLEN];
+	memset(my_format, 0, ADDRESSLEN);
+
+	strcat(my_format, "image/");
+	if (!strncmp(format, "jpg", 3) || !strncmp(format, "jsp", 3))
+	{
+		strcat(my_format, "jpeg");
+		strcat(Folder, "jpg");
+	}
+	else
+	{
+		strcat(my_format, format);
+		strcat(Folder, format);
+	}
+
+	//포맷이 있을 경우 저장 수행
+	if (format[0]!='\0' && Folder[0]!='\0')
+	{
+		//파일 형식 
+		wchar_t Formatuni[20];
+		wmemset(Formatuni, 0, 20);
+		mbstowcs(Formatuni, my_format, 20);
+
+		//파일명
+		wchar_t Folderuni[ADDRESSLEN];
+		wmemset(Folderuni, 0, ADDRESSLEN);
+		mbstowcs(Folderuni, Folder, ADDRESSLEN);
+
+		//저장
+		SaveStream(&image, Formatuni, Folderuni);
+		memcpy(Folder, MainFolder, ADDRESSLEN);
+		return 1;
+	}
+	else
+		return 0;
 }
 
 //헤더와 바디 분리해야되는 위치 반환하는 함수
@@ -935,6 +1042,13 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 	WNDCLASS WndClass;
 	g_hInst = hInstance;
 
+	//그래픽 객체
+	GdiplusStartupInput gdiplusStartupInput;
+	ULONG_PTR gdiplusToken;
+
+	//GDI+ 초기화
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
 	//한국어
 	setlocale(LC_ALL, "korean");
 
@@ -956,11 +1070,22 @@ int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpszCmd
 
 	ShowWindow(hWnd, nCmdShow);
 
+	//폴더 생성
+	char Folder[ADDRESSLEN];
+	memset(Folder, 0, ADDRESSLEN);
+
+	//PATH 설정
+	strcat(Folder, "C:\\Images\\");
+	SHCreateDirectoryExA(NULL, Folder, NULL);
+
 	while (GetMessage(&Message, NULL, 0, 0))
 	{
 		TranslateMessage(&Message);
 		DispatchMessage(&Message);
 	}
+
+	//GDI+ 종료
+	GdiplusShutdown(gdiplusToken);
 
 	return (int)Message.wParam;
 }
@@ -1003,6 +1128,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	DNS m_dns;
 	Parser m_parser;
 		
+	//GDI+ Color
+	Gdiplus::Color cl;
+	cl.White;
 
 	int x = 0;               // horizontal and vertical coordinates
 
@@ -1017,10 +1145,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	static int xPos;
 	int abcLength = 0;  // length of an abc[] item
 	
-	//그래픽 객체
-	GdiplusStartupInput gdiplusStartupInput;
-	ULONG_PTR gdiplusToken;
-
 	int j = 0;
 	memset(str, 0, ADDRESSLEN);
 
@@ -1067,9 +1191,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			memset(str, 0, ADDRESSLEN);
 			GetWindowTextA(hEdit, str, ADDRESSLEN);
 
-			//GDI+ 초기화
-			GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
-
 			do
 			{
 				//초기화
@@ -1105,7 +1226,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					
 				printf("Address : %s\n", m_parser.address);
 				printf("Index : %s\n", m_parser.index);
-					
 
 				if (m_dns.get_dns(m_parser.address) != 1)
 				{
@@ -1149,6 +1269,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					yPos_total = m_socket.GetPacketNum();
 
 					//Header, Body Parsing
+					
+					if (yPos_total > MAXLEN)
+						yPos_total = MAXLEN;
+
 					int HeaderPos = FindHeaderPos(rbuf, yPos_total, 4);
 					
 					//초기화
@@ -1182,7 +1306,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 						//Parse_Tag(rbuf, yPos_total, content_buffer);
 						//printf("%s", content_buffer);
 
-						//Multi2Uni(rbuf, MAXLEN, uni);
+						//index에서 파일명 가져오는 Parser
+
+
 						Parse_Tag2(rbuf, yPos_total, "a href=", str_buffer, HTTP_only);
 						
 						//301 Redirection 오류 발생시
@@ -1206,17 +1332,45 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 							m_socket.Close();
 						}
 
+						cout << img_buffer << endl;
+
 						//str,img_buffer 모두 비었으면 오류가 났을 것이다.
 						if (img_buffer[0] == '\0' && str_buffer[0] == '\0')
 							Error_flag = 1;
-
-						//wprintf(L"%ls", uni);
+						else
+						{
+							//오류가 나지 않았을 경우 폴더 생성
+							memset(Folder, 0, ADDRESSLEN);
+							memset(MainFolder, 0, ADDRESSLEN);
+							
+							//경로 설정
+							strcat(Folder, "C:\\Images\\");
+							strcat(Folder, m_parser.address);
+							
+							//주소명으로 폴더 생성
+							SHCreateDirectoryExA(NULL, Folder, NULL);
+							strcat(Folder, "\\");
+							
+							memcpy(MainFolder, Folder, ADDRESSLEN);
+						}
 					}
-
+					else
+					{
+						//사진 저장하기 위해 Parsing
+						memset(rbuf, 0, MAXLEN);
+						if (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf))
+						{
+							memset(filename, 0, ADDRESSLEN);
+							memset(format, 0, ADDRESSLEN);
+							GetFileName(rbuf, strlen(rbuf), filename, format);
+							cout << "filename : " << filename << endl;
+							cout << "format : " << format << endl;
+							strcat(Folder, filename);
+						}
+					}
 					
 					if(!Error_flag)
 						memset(rbuf, 0, MAXLEN);
-					
 					j++;
 					InvalidateRect(hWnd, NULL, true);
 					UpdateWindow(hWnd);
@@ -1225,15 +1379,15 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				{
 					if(j==0)
 						MessageBox(hWnd, L"호스트를 찾을 수 없습니다.", L"알림창", MB_OK);
+					InvalidateRect(hWnd, NULL, true);
+					UpdateWindow(hWnd);
 					break;
 				}
 			} while (Get_Parse_Tag2(img_buffer, strlen(img_buffer), j, rbuf) == 1 || j == 0);
 			
+			
 			cout << "End Request\n" << endl;
 			
-			//GDI+ 종료
-			GdiplusShutdown(gdiplusToken);
-
 			//Scroll 초기화
 			GetScrollInfo(hWnd, SB_VERT, &si);
 			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
@@ -1285,7 +1439,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				}
 				else
 					Error_flag = 0;
-
 			}
 
 			break;
@@ -1298,7 +1451,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 				memset(str, 0, ADDRESSLEN);
 				GetWindowTextA(hEdit, str, ADDRESSLEN);
 				break;
-
 			}
 		}
 		return 0;
