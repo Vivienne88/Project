@@ -89,6 +89,17 @@ SCROLLINFO si;
 //GDI+ 변수
 Graphics* g;
 
+int Count_Backtotal(char* buf, int buffer_size)
+{
+	back_total = 0;
+	for (int i = 0; i < buffer_size; i++)
+	{
+		if (buf[i] == '\n')
+			back_total ++;
+	}
+	return 1;
+}
+
 //파일명, 형식 Parsing
 int GetFileName(char* buf, int buffer_size, char* filename, char* format)
 {
@@ -120,7 +131,7 @@ int GetFileName(char* buf, int buffer_size, char* filename, char* format)
 		}
 
 		//시드 설정
-		srand(time(NULL));
+		srand((unsigned int)time(NULL));
 
 		if(dotPos > bracketPos)
 			memcpy(filename, buf + bracketPos, dotPos - bracketPos - 1);
@@ -600,7 +611,7 @@ int Parse_Tag(char* buffer, int buffer_size, char* output)
 			else if (buffer[i] == '\n' && count == 0)
 			{
 				count++;
-				back_total++;
+				//back_total++;
 				output[output_index++] = '\n';
 			}
 			else if (buffer[i] == '\n')
@@ -618,6 +629,9 @@ int Parse_Tag(char* buffer, int buffer_size, char* output)
 		{
 			start_flag = 1;
 		}
+
+		if (buffer[i] == '\n')
+			back_total++;
 	}
 	return 0;
 }
@@ -1115,7 +1129,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	HDC hdc;
 	PAINTSTRUCT ps;
 	char str[ADDRESSLEN];
-	char index[ADDRESSLEN];
 	char new_str[1000] = "";
 	int parse_int = 0;
 	RECT rt;
@@ -1166,6 +1179,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 
 		switch (LOWORD(wParam)) {
 		case ID_BUTTON1:
+			Error_flag = 0;
 			//초기화 
 			//기존의 SysLink 존재할 경우 모두 삭제
 			if (m_link)
@@ -1304,6 +1318,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 						//memset(content_buffer, 0, yPos_total);
 
 						//Parse_Tag(rbuf, yPos_total, content_buffer);
+						Count_Backtotal(rbuf, MAXLEN);
 						//printf("%s", content_buffer);
 
 						//index에서 파일명 가져오는 Parser
@@ -1387,21 +1402,20 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			
 			
 			cout << "End Request\n" << endl;
-			
+
+	
+			//g->Clear()
 			//Scroll 초기화
 			GetScrollInfo(hWnd, SB_VERT, &si);
-			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
 			SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
+			ScrollWindow(hWnd, 0, si.nPos, NULL, &rt);
 			SetScrollPos(hWnd, SB_VERT, 0, 1);
-			
-			if (!Error_flag)
-			{
-				InvalidateRect(hWnd, &rt, false);
-				UpdateWindow(hWnd);
-			}
+			SendMessage(hWnd, WM_VSCROLL, NULL, NULL);
+			InvalidateRect(hWnd, &rt, 1);
+			UpdateWindow(hWnd);
 
 			//SysLink 생성
-			if (yPos_total)
+			if (yPos_total && !Error_flag)
 			{
 				//초기화
 				if (m_link != NULL)
@@ -1437,8 +1451,6 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 					InvalidateRect(hWnd, &rt, 1);
 					UpdateWindow(hWnd);
 				}
-				else
-					Error_flag = 0;
 			}
 
 			break;
@@ -1501,6 +1513,8 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 	case WM_PAINT:
 		
 		hdc = BeginPaint(hWnd, &ps);
+		//화면 지우기
+		SetBkMode(hdc, TRANSPARENT);
 
 		//오류 발생하였을 경우
 		if (Error_flag)
@@ -1510,7 +1524,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			m_rt.bottom = rt.bottom;
 			m_rt.right = rt.right;
 			m_rt.top = rt.top + 50;
-			DrawTextA(hdc, rbuf, -1, &m_rt, DT_LEFT);
+			GetScrollInfo(hWnd, SB_VERT, &si);		
+			DrawTextA(hdc, rbuf + text_yPos, -1, &m_rt, DT_LEFT);
+			printf("%d", text_yPos);
 		}
 		else if (yPos_total)
 		{
@@ -1542,15 +1558,16 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 		si.cbSize = sizeof(si);
 		si.fMask = SIF_ALL;
 		GetScrollInfo(hWnd, SB_VERT, &si);
+
 		if (back_total)
 		{
 			si.nMax = back_total;
-			si.nPage = (si.nMax / back_total);
+			si.nPage = 1;
 		}
 		else
 			si.nPage = 5;
 		SetScrollInfo(hWnd, SB_VERT, &si, TRUE);
-
+		
 		// Save the position for comparison later on.
 		yPos = si.nPos;
 		switch (LOWORD(wParam))
@@ -1559,37 +1576,37 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			// User clicked the HOME keyboard key.
 		case SB_TOP:
 			si.nPos = si.nMin;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the END keyboard key.
 		case SB_BOTTOM:
 			si.nPos = si.nMax;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, FORWARD);
 			break;
 
 			// User clicked the top arrow.
 		case SB_LINEUP:
 			si.nPos -= 10;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the bottom arrow.
 		case SB_LINEDOWN:
 			si.nPos += 10;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, FORWARD);
 			break;
 
 			// User clicked the scroll bar shaft above the scroll box.
 		case SB_PAGEUP:
 			si.nPos -= si.nPage;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, BACKWARD);
 			break;
 
 			// User clicked the scroll bar shaft below the scroll box.
 		case SB_PAGEDOWN:
 			si.nPos += si.nPage;
-			text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
+			text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, FORWARD);
 			break;
 
 			// User dragged the scroll box.
@@ -1597,10 +1614,10 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 			//줄어들 때
 			if (si.nTrackPos < si.nPos)
 				for (int i = si.nTrackPos; i < si.nPos; i += si.nPage)
-					text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, BACKWARD);
+					text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, BACKWARD);
 			else
 				for (int i = si.nPos; i < si.nTrackPos; i += si.nPage)
-					text_yPos = Set_yPos(str_buffer, yPos_total, text_yPos, FORWARD);
+					text_yPos = Set_yPos(rbuf, MAXLEN, text_yPos, FORWARD);
 			si.nPos = si.nTrackPos;
 
 			break;
