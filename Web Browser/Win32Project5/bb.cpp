@@ -28,7 +28,7 @@ using namespace Gdiplus::DllExports;
 #pragma execution_character_set("utf-8")
 
 //콘솔
-#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
+//#pragma comment(linker, "/entry:WinMainCRTStartup /subsystem:console")
 
 //소켓
 #pragma comment(lib, "Ws2_32.lib")
@@ -43,7 +43,7 @@ processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #define ID_EDIT1 9001
 
 //스트링 길이
-#define MAXLEN 65537
+#define MAXLEN 8192 * 40
 #define ADDRESSLEN 2048
 
 //함수 원형
@@ -1335,7 +1335,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT iMessage, WPARAM wParam, LPARAM IParam)
 							//Parsing 안될 경우 HTML 형식이 아닐 것이다. 재시도 중단
 							if (str_buffer[0] != '\0')
 							{
-								memcpy(str + strlen(str) - 1, str_buffer, strlen(str_buffer) - 1);
+								memcpy(str + strlen(str) , str_buffer, strlen(str_buffer) -1);
 								SetWindowTextA(hEdit, str);
 								memset(str_buffer, 0, yPos_total);
 								j = -1;
