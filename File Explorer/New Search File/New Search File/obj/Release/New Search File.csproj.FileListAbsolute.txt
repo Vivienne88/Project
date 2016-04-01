@@ -1,0 +1,6 @@
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\bin\Release\New Search File.exe.config
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\bin\Release\New Search File.exe
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\bin\Release\New Search File.pdb
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.exe
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.pdb
+C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.csprojResolveAssemblyReference.cache

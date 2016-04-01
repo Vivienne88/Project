@@ -1,0 +1,6 @@
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\bin\Release\Change Thread.exe.config
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\bin\Release\Change Thread.exe
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\bin\Release\Change Thread.pdb
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\obj\Release\Change Thread.exe
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\obj\Release\Change Thread.pdb
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Change Thread\Change Thread\obj\Release\Change Thread.csprojResolveAssemblyReference.cache
