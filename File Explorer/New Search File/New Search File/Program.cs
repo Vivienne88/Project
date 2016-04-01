@@ -13,21 +13,25 @@ using System.Text.RegularExpressions;
 
 namespace New_Search_File
 {
-    //쓰레드 함수 옵션
+    //Thread 탐색시 옵션
     public enum ThreadMode { Single = 0, Multi = 1 };
 
     class Program
     {
         public class global
         {
-            //public static bool AutoReset = true;
+            //패턴 담는 Vector
             public static List<char> HexaVector = new List<char>();
+            //다음 Thread에게 줘야할 Direcotry
             public static string g_dir = null;
+            //Thread의 번호
             public static bool g_cookie = true;
+            //Thread 순서를 맞추기 위한 Wait Handler
             public static EventWaitHandle latch = new EventWaitHandle(false, EventResetMode.AutoReset);
             public static EventWaitHandle latch2 = new EventWaitHandle(false, EventResetMode.AutoReset);
         }
 
+        //Thread가 수행하는 Callback 함수에 필요한 정보
         public class TaskInfo
         {
             public int Cookie;
@@ -45,9 +49,11 @@ namespace New_Search_File
 
         class WorkFunction
         {
-            //해쉬 위한 변수 추가
+            //Thread Pool에 사용될 Hashtable
             public Hashtable Hashcount;
+            //동기화 위한 Lock
             private static System.Object lockThis = new System.Object();
+            //멤버 변수
             private ManualResetEvent ieventX;
             public static int iCount = 0;
             public static int iMaxCount = 0;
@@ -59,6 +65,7 @@ namespace New_Search_File
                 ieventX = eventX;
             }
 
+            //하나의 Directory안에 File들의 Hex Code를 찾는 부분
             public static void Search(string dir, string word)
             {
                 try
@@ -73,10 +80,7 @@ namespace New_Search_File
                         else
                             temp = dir + "\\" + word;
                         
-                        //HEXA
-                        //FILE일 경우 input에서 이후 정규표현식
-                        
-                        //파일명 ALL
+                        //모든 파일에 대해
                         if (word == "")
                         {
                             //HEXA 찾기
@@ -92,15 +96,11 @@ namespace New_Search_File
                                     {
                                         if (character == c)
                                         {
-                                            //decimal decValue = c;
                                             offset2 = index;
                                             lock(lockThis)
                                             {
                                                 File.AppendAllText(word + "Log.txt", dir+"\\"+f+" : "+ c + Environment.NewLine);
-                                                //Console.WriteLine("{0}\\{1} : {2:X} 에서 발견", dir, f, Convert.ToInt32(c));
                                             }
-                                            //Console.WriteLine("{0}\\{1} : {2:X} 에서 발견", dir, f, line.Substring(offset+1,offset2-offset));
-                                            //Console.WriteLine("{0}", f);
                                         }
                                         else
                                             offset = index;
@@ -109,7 +109,7 @@ namespace New_Search_File
                                 }
                             }
                         }
-                        else if (f == temp || (word == filename))
+                        else if (f == temp || (word == filename)) //특정 파일에 대해
                         {
                             Console.WriteLine("{0}", f);
 
@@ -125,12 +125,8 @@ namespace New_Search_File
                                     {
                                         if (character == c)
                                         {
-                                            //decimal decValue = c;
-                                            //Console.WriteLine("{0}\\{1} : {2:X} 에서 발견", dir, f, Convert.ToInt32(c));
                                             offset2 = index;
                                             File.AppendAllText(word + "Log.txt", dir + "\\" + f + " : " + c + Environment.NewLine);
-                                            //Console.WriteLine("{0}\\{1} : {2:X} 에서 발견", dir, f, line.Substring(offset+1,offset2-offset));
-                                            //Console.WriteLine("{0}", f);
                                         }
                                         else
                                             offset = index;
@@ -139,29 +135,14 @@ namespace New_Search_File
                                 }
                             }
                         }
-                        else
-                        {
-                            //Console.WriteLine("{0}", f);
-                            //File.AppendAllText(word + "Log.txt", f + Environment.NewLine);
-                            ///*
-                            /*lock (lockThis)
-                            {
-                                //File.AppendAllText(word + "Log.txt", f + Environment.NewLine);
-                            }*/
-                            //*/
-                        }
                     }
                 }
-                catch (UnauthorizedAccessException ex)
-                {
-                    //Console.WriteLine(ex);
-                }
-                catch (Exception ex)
-                {
-
-                }
+                catch (UnauthorizedAccessException ex){ }
+                catch (Exception ex) { }
+                //관리자 접근 제한 및 System Path 270글자로 제한된 운영체제에서 오류방지
             }
 
+            //하나의 Directory를 탐색하는 경우
             public static void Dir_Search(string dir, string word, ThreadMode mode)
             {
                 try
@@ -175,37 +156,26 @@ namespace New_Search_File
                             temp = dir + "\\" + word;
 
                         //멀티스레드일 경우
-                        if (Convert.ToInt32(mode) == 1)
+                        if (mode == ThreadMode.Multi)
                         {
                             if (d == temp)
                             {
                                 Console.WriteLine("{0}", d);
-                                //File.AppendAllText(word + ".txt", d + Environment.NewLine);
                             }
-                            else
-                            {
-                                //Console.WriteLine("{0}", d);
-                                //File.AppendAllText(word + "Log.txt", d + Environment.NewLine);
-                            }
-
-
+                            
                             //다음 Thread에게 dir을 넘겨주고
                             global.g_dir = d;
 
                             //다른 쓰레드 시작하길 기다린다.
                             global.latch2.Set();
-                            /*
-                            if (!global.AutoReset)
-                                global.latch = new EventWaitHandle(false, EventResetMode.ManualReset);
-                            */
-                            EventWaitHandle.WaitAny(new WaitHandle[] { global.latch });
-                            //while (global.g_dir != null && !global.g_cookie) { }
 
+                            EventWaitHandle.WaitAny(new WaitHandle[] { global.latch });
+                            
                             Dir_Search(d, word, mode);
                         }
-                        else
+                        else if(mode == ThreadMode.Single)
                         {
-                            //맞을 경우 저장
+                            //입력한 단어와 동일할 경우
                             if (d == temp)
                             {
                                 Console.WriteLine("{0}", d);
@@ -218,46 +188,34 @@ namespace New_Search_File
                         }
                     }
                 }
-                catch (UnauthorizedAccessException ex)
-                {
-                    // Console.WriteLine(ex);
-                }
-                catch (Exception ex)
-                {
-
-                }
+                catch (UnauthorizedAccessException ex){ }
+                catch (Exception ex){ }
             }
 
             public void Work(object state)
             {
-
-                // Console.WriteLine(" {0} {1} : ", Thread.CurrentThread.GetHashCode(), ((TaskInfo)state).Cookie);
-
-                //Console.WriteLine("HashCount.Count=={0}, Thread.CurrentThread.GetHashCode()=={1}", Hashcount.Count, Thread.CurrentThread.GetHashCode());
-
-                //0번일 경우 다른 함수
-
                 lock (ieventX)
                 {
                     if (!Hashcount.ContainsKey(Thread.CurrentThread.GetHashCode()))
                         Hashcount.Add(Thread.CurrentThread.GetHashCode(), 0);
                     Hashcount[Thread.CurrentThread.GetHashCode()] = ((int)Hashcount[Thread.CurrentThread.GetHashCode()]) + 1;
 
-                    //Cookie가 아니고 Thread Number
+                    //Thread 0번 일 경우 Directory 찾는 일을 할당
                     if (((TaskInfo)state).Cookie == 0)
                         Dir_Search(((TaskInfo)state).dir, ((TaskInfo)state).word, ((TaskInfo)state).mode);
-                    else
+                    else //나머지 경우 각 파일에 대해 Hex Code 찾는 일을 할당
                         Search(((TaskInfo)state).dir, ((TaskInfo)state).word);
+
+                    //할당된 일이 끝났음을 알림
                     ieventX.Set();
                 }
 
+                //Directory 찾는 스레드가 종료되었을 경우
                 if (((TaskInfo)state).Cookie == 0)
                 {
                     Console.WriteLine("Directory Search Complete!");
                     global.g_cookie = false;
                     global.latch.Set();
-
-                    //진행중인 쓰레드들 강제 종료
                     global.latch2.Set();
                 }
             }
@@ -265,10 +223,8 @@ namespace New_Search_File
 
         static void Main(string[] args)
         {
+            //변수 선언 및 입력
             int thread_num;
-
-            //String pattern = @"\s-\s?[+*]?\s?-\s";
-            //String pattern = "[,]+|\s+";
             String pattern = @"\s+|[,]+|0x";
 
             string HexaInput;
@@ -282,8 +238,9 @@ namespace New_Search_File
             string input;
             Console.WriteLine("파일명을 입력하세요.");
             input = Console.ReadLine();
-
-            if(input == "FILE" || input == "file" || input == "File")
+            
+            //파일일 경우
+            if (input == "FILE" || input == "file" || input == "File")
             {
                 if (File.Exists(HexaInput))
                 {
@@ -303,8 +260,11 @@ namespace New_Search_File
                     HexaInput = null;
                 }
             }
-            else
+            else//입력 받은 경우
             {
+                //정규표현식으로 나눈다.
+                //사용자가 입력을 Space 한번으로 안준다는 가정 때문에 넣었습니다.
+                //한번의 Space로 정규화된 입력이면 String.Split(" ");을 사용했을 것입니다.
                 String[] elements = Regex.Split(HexaInput, pattern);
                 foreach (var element in elements)
                     if (element != "")
@@ -318,6 +278,7 @@ namespace New_Search_File
             Stopwatch sw = new Stopwatch();
             sw.Start();
 
+            //Thread가 하나일 경우 예외처리
             if (thread_num == 1)
             {
                 WorkFunction.Dir_Search("C:\\", input, ThreadMode.Single);
@@ -328,12 +289,6 @@ namespace New_Search_File
                 Console.ReadKey();
                 return;
             }
-            /*
-            else if (thread_num < 5)
-            {
-                global.AutoReset = false;
-            }
-            */
 
             string[] dir = Directory.GetDirectories("C:\\");
 
@@ -354,6 +309,8 @@ namespace New_Search_File
             bool start_flag = true;
             int temp = 0;
 
+            //Pool에서 반복적으로 일이 끝났는지 확인하고
+            //끝났을 경우 새로운 매개변수를 줘서 탐색을 한다.
             do
             {
                 for (int i = 0 + temp; i < thread_num; i++)
@@ -362,27 +319,27 @@ namespace New_Search_File
                     {
                         if (start_flag || eventX[i].WaitOne(0))
                         {
+                            //초기화
                             eventX[i] = new ManualResetEvent(false);
                             WorkFunction thread = new WorkFunction(thread_num, eventX[i]);
 
+                            //처음의 경우 예외처리, Directory주는 Thread 실행을 위함
                             if (i == 0 && start_flag)
                             {
                                 Ti[i] = new TaskInfo(i, "C:\\", input, ThreadMode.Multi);
                                 ThreadPool.QueueUserWorkItem(new WaitCallback(thread.Work), Ti[i]);
                             }
-                            else
+                            else//File 읽는 Thread 실행
                             {
                                 global.g_dir = null;
 
                                 //g_dir 가져올 때 까지 대기
                                 global.latch.Set();
-                                /*
-                                if (!global.AutoReset)
-                                    global.latch2 = new EventWaitHandle(false, EventResetMode.ManualReset);
-                                */
-
+                                
+                                //Directory 가져올 때 까지 대기
                                 EventWaitHandle.WaitAny(new WaitHandle[] { global.latch2 });
 
+                                //Directory 가져왔을 경우, 각 파일에 대해 Hex Code 찾기 수행
                                 if (global.g_dir != null)
                                 {
                                     Ti[i] = new TaskInfo(i, global.g_dir, input, ThreadMode.Multi);
@@ -402,12 +359,14 @@ namespace New_Search_File
                     }
                 }
             } while (Convert.ToBoolean(WaitHandle.WaitAny(new[] { eventX[0], token.WaitHandle }, 0)));
-            //(!eventX[0].WaitOne(0));
+            //File Thread가 멈출 때 까지
 
-
+            //시간 측정 완료
             Console.WriteLine("All calculations are complete.");
             sw.Stop();
             Console.WriteLine(sw.ElapsedMilliseconds.ToString() + "ms");
+
+            //Release 버전에서 강제 종료됨을 방지
             Console.WriteLine("Press any key to quit");
             Console.ReadKey();
         }

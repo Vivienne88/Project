@@ -1,0 +1,13 @@
+C:\Images
+C:\Program Files\Windows Sidebar\Gadgets\PicturePuzzle.Gadget\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\ClientDiagnostics\AppResponsiveness\View\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\ClientDiagnostics\MemoryProfiler\Views\Collection\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\ClientDiagnostics\MemoryProfiler\Views\Common\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\ClientDiagnostics\MemoryProfiler\Views\Details\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\ClientDiagnostics\MemoryProfiler\Views\Summary\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Microsoft\PowerProfiler\Views\Css\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Platform\CPUSampling\WebViews\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\CommonExtensions\Platform\DiagnosticsHub\WebViews\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions\ar0idgse.qkk\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions\Microsoft\VsGraphics\Assets\Images
+C:\Program Files (x86)\Microsoft Visual Studio 14.0\Common7\IDE\Extensions\Microsoft\VsGraphics\Images

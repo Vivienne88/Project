@@ -1,0 +1,14 @@
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\Change Thread\Change Thread\bin\Release\Images.txt
+C:\Users\vivienne\Desktop\Git\Local\Web Browser\Win32Project5\Images.txt
+C:\Users\vivienne\Desktop\TLB tester\TLB tester\TLB tester\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Before Optimization\Before Optimization\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Directory Tester\Directory Tester\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\New Thread Tester\New Thread Tester\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optimization Character Speed\Optimization Character Speed\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optional Save Search File\Optional Save Search File\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optional Save Search File\Optional Save Search File\bin\Release\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optional Save Search File\Optional Save Search File\bin\x64\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optional Save Search File\Optional Save Search File\bin\x64\Release\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\Optional Save Tester\Optional Save Tester\bin\Debug\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\TLB tester\TLB tester\Images.txt
+C:\Users\vivienne\Documents\Visual Studio 2015\Projects\TLB Tester 2\TLB Tester 2\Images.txt

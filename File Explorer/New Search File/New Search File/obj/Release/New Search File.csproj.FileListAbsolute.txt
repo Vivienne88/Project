@@ -4,3 +4,9 @@ C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Sear
 C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.exe
 C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.pdb
 C:\Users\vivienne\documents\visual studio 2015\Projects\New Search File\New Search File\obj\Release\New Search File.csprojResolveAssemblyReference.cache
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\bin\Release\New Search File.exe.config
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\obj\Release\New Search File.exe
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\obj\Release\New Search File.pdb
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\bin\Release\New Search File.exe
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\bin\Release\New Search File.pdb
+C:\Users\vivienne\Desktop\Git\Local\File Explorer\New Search File\New Search File\obj\Release\New Search File.csprojResolveAssemblyReference.cache
